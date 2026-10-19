@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'">
+  <title>拾光 · 工时日历</title>
+  <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="calendar.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="titlebar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true"><i></i><i></i></span><strong>拾光</strong><span class="brand-caption">让每一份认真，都有迹可循。</span></div>
+      <div class="window-buttons">
+        <button id="open-settings" class="settings-button" title="设置"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2-1 3 3 2 2-1 3 2 3-2 2 1 3-2-1-3 2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg>设置</button>
+        <button id="minimize" aria-label="最小化" title="最小化"><svg class="icon" viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
+        <button id="close" class="close" aria-label="关闭日历" title="关闭日历，保留工作球"><svg class="icon" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
+      </div>
+    </header>
+    <section class="content">
+      <div class="page-heading"><div><h1>把日子，慢慢点亮<span class="heading-star" aria-hidden="true">✳</span></h1><p class="intro">认真工作的每一秒，都会长成一圈小小的绿意。</p></div><div class="doodle" aria-hidden="true"><span class="doodle-ray ray-one"></span><span class="doodle-ray ray-two"></span><div class="doodle-orb"><div class="doodle-face"><i></i><b></b><i></i></div></div><span class="doodle-star">✧</span></div></div>
+      <section class="summary" aria-label="本月统计">
+        <div class="stat"><span class="stat-label"><svg class="icon lavender" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>本月累计</span><div><strong id="month-total">0</strong><span class="unit">小时</span></div></div>
+        <div class="stat"><span class="stat-label"><svg class="icon green" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M6 6l12 12M6 18 18 6"/></svg>已点亮的日子</span><div><strong id="completed-days">0</strong><span class="unit">天<span id="target-description"> · 每天满 8 小时</span></span></div></div>
+        <div class="stat today-stat"><span class="stat-label"><span class="live-dot" id="live-dot"></span>今日工时<span id="work-status" class="work-status">已下班</span></span><div><strong id="today-time">00:00:00</strong><button id="toggle-work" class="button soft" title="切换上下班状态">签到</button></div></div>
+      </section>
+      <section class="calendar-card" aria-label="工时日历">
+        <div class="calendar-toolbar"><div class="month-navigation"><button id="previous-month" class="arrow-button" aria-label="上个月" title="上个月"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button><button id="next-month" class="arrow-button" aria-label="下个月" title="下个月"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button><h2 id="month-title"></h2><span id="month-english" class="month-english"></span></div><div class="calendar-actions"><button id="go-today" class="button">本月</button><button id="add-time" class="button soft"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>补录工时</button></div></div>
+        <div class="calendar-grid" role="grid" aria-labelledby="month-title" id="calendar-grid"></div>
+        <div class="calendar-bottom"><div class="legend"><span>工时的颜色</span><span>0</span><span class="legend-track"></span><span id="legend-target">8h</span></div><span class="calendar-note">周一开始 · 点击日期可补录</span></div>
+      </section>
+      <footer><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></svg>工时自动保存在这台电脑</span><span>周工时包含跨月日期</span></footer>
+      <div id="storage-error" class="error-message" role="alert" hidden></div>
+    </section>
+  </main>
+  <dialog id="edit-dialog" aria-labelledby="edit-title">
+    <form id="edit-form">
+      <div class="dialog-heading"><div><h3 id="edit-title">补录工时</h3><p>把漏记的认真，补回来。</p></div><button type="button" id="dismiss-edit" class="dialog-close" aria-label="关闭补录窗口"><svg class="icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+      <label class="field">日期<input id="edit-date" type="date" required></label>
+      <p class="current-record">当前累计 <strong id="editor-current">00:00:00</strong></p>
+      <div class="edit-mode" role="group" aria-label="修改方式"><label><input type="radio" name="mode" value="add" checked><span>补充时长</span></label><label><input type="radio" name="mode" value="replace"><span>修正总时长</span></label></div>
+      <div class="duration-inputs"><label class="field">小时<input id="edit-hours" type="number" min="0" max="24" step="1" value="0" required></label><label class="field">分钟<input id="edit-minutes" type="number" min="0" max="59" step="1" value="0" required></label><label class="field">秒<input id="edit-seconds" type="number" min="0" max="59" step="1" value="0" required></label></div>
+      <p id="edit-preview" class="edit-preview"></p><p id="edit-live-hint" class="hint" hidden>今日正在计时，保存后仍会继续累加。</p>
+      <div id="edit-error" class="error-message" role="alert" hidden></div>
+      <div class="dialog-actions"><button type="button" id="cancel-edit" class="button">取消</button><button type="submit" id="save-edit" class="button primary">保存工时</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="work-dialog" aria-labelledby="work-dialog-title"><div class="dialog-heading"><h3 id="work-dialog-title">休息一下？</h3><button id="close-work-dialog" class="dialog-close" aria-label="取消">×</button></div><div class="work-choices"><button id="work-pause-resume" class="button primary">临时离开</button><button id="work-finish" class="button">下班啦</button></div><p id="work-error" class="error-message" hidden></p></dialog>
+  <script type="module" src="calendar.js"></script>
+</body>
+</html>

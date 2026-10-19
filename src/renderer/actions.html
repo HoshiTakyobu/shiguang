@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'none'"><title>拾光</title><link rel="stylesheet" href="base.css"><link rel="stylesheet" href="actions.css"></head>
+<body>
+  <main class="bubble" aria-label="选择操作">
+    <button class="dismiss" id="dismiss" aria-label="取消">×</button>
+    <div class="bubble-face" aria-hidden="true">◡</div>
+    <h1 id="bubble-title">休息一下？</h1><p id="bubble-caption">休息也很重要，选一个吧。</p>
+    <div class="choices"><button id="pause-resume" class="choice pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="action-icon" d="M8 5v14M16 5v14"/></svg><strong id="pause-label">临时离开</strong><small id="pause-hint">暂停计时</small></button><button id="clock-out" class="choice finish"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 14A8 8 0 0 1 10 4a8 8 0 1 0 9 10Z"/></svg><strong>下班啦</strong><small>结束本次工作</small></button></div>
+    <p id="action-error" role="alert" hidden></p>
+  </main><span class="bubble-tail tail-one"></span><span class="bubble-tail tail-two"></span>
+  <script type="module" src="actions.js"></script>
+</body></html>

@@ -1,0 +1,47 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check:docs
+      - run: npm test
+      - run: npm run test:startup
+      - run: npm run test:system
+      - run: npm run test:ui
+      - run: npm run dist
+      - name: Test packaged application
+        shell: pwsh
+        run: |
+          $env:SHIGUANG_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'release/win-unpacked/拾光.exe'
+          npm run test:ui
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: npm run release:prepare
+      - name: Publish complete release
+        run: node scripts/publish-release.cjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: release-diagnostics
+          path: |
+            test-results/*.png
+            release/builder-*.yaml
+          if-no-files-found: ignore

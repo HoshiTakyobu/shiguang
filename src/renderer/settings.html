@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'">
+  <title>拾光 · 设置</title>
+  <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="titlebar"><div class="brand"><span class="brand-icon" aria-hidden="true"><i></i><i></i></span><strong>拾光</strong><span class="brand-caption">设置</span></div><div class="window-buttons"><button id="close-settings" class="close" aria-label="关闭设置"><svg class="icon" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div></header>
+    <div class="settings-layout">
+      <aside class="sidebar"><nav aria-label="设置分类">
+        <button class="nav-item selected" data-tab="general" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>常规</button>
+        <button class="nav-item" data-tab="work"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>工时</button>
+        <button class="nav-item" data-tab="advanced"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></svg>高级</button>
+      </nav><div class="version"><span id="version">拾光</span><span id="author">Hoshi Takyobu</span></div></aside>
+      <section class="settings-content">
+        <section id="panel-general" class="settings-panel" aria-labelledby="general-heading">
+          <h1 id="general-heading">常规</h1><p class="page-description">让拾光，按你的习惯陪伴。</p>
+          <div class="setting-card"><div class="setting-row"><div><h2>开机自启动</h2><p>登录 Windows 后，自动显示桌面工作球。</p></div><label class="switch"><input id="launch-at-login" type="checkbox" aria-label="开机自启动"><span></span></label></div><div id="startup-warning" class="error-message" hidden></div></div>
+          <div class="setting-card locale-card"><div class="setting-row"><div><h2><label for="language">界面语言</label></h2><p>更改后立即应用到所有窗口。</p></div><select id="language"><option value="zh-CN">简体中文</option><option value="en">English</option></select></div><div class="setting-row"><div><h2><label for="week-start">每周开始于</label></h2><p>日历顺序和每周工时一起调整。</p></div><select id="week-start"><option value="1">周一</option><option value="2">周二</option><option value="3">周三</option><option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="0">周日</option></select></div></div>
+          <div class="setting-card"><h2>颜色主题</h2><p class="card-description">同时应用到工作球、日历和设置页。</p><div class="themes" role="group" aria-label="颜色主题">
+            <button type="button" data-theme-choice="spring" class="theme-card"><span class="theme-preview spring"><i></i><i></i></span><strong>薄荷晴空</strong><small>清新绿 · 晴空蓝</small><svg class="theme-check icon" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></button>
+            <button type="button" data-theme-choice="slate" class="theme-card"><span class="theme-preview slate"><i></i><i></i></span><strong>雾蓝石墨</strong><small>雾蓝 · 冷灰</small><svg class="theme-check icon" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></button>
+            <button type="button" data-theme-choice="sand" class="theme-card"><span class="theme-preview sand"><i></i><i></i></span><strong>松石暖砂</strong><small>松石绿 · 暖砂色</small><svg class="theme-check icon" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></button>
+          </div></div>
+        </section>
+        <section id="panel-work" class="settings-panel" aria-labelledby="work-heading" hidden>
+          <h1 id="work-heading">工时</h1><p class="page-description">一圈的长度，由你来定。</p>
+          <form class="setting-card" id="target-form"><h2>圆环目标工时</h2><p class="card-description">一天累计达到这个时长，日期外圈就会转满 360°。</p><div class="target-layout"><div class="goal-ring" aria-hidden="true"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42"/></svg><span>360°</span></div><div class="target-fields"><label class="field">小时<input id="target-hours" type="number" min="0" max="24" step="1" required></label><label class="field">分钟<input id="target-minutes" type="number" min="0" max="59" step="1" required></label></div></div><p class="target-preview" id="target-preview"></p><p class="hint">修改目标会应用到所有月份的圆环和达标天数，已有工时保持原样。超过目标后，工时仍继续累计。</p><div class="card-actions"><button type="submit" class="button primary" id="save-target">保存目标</button></div></form>
+          <div class="help-card"><h2>需要补录漏记的工时？</h2><p>在日历中点击日期，或点击「补录工时」，即可补充时长或修正当天累计。</p></div>
+        </section>
+        <section id="panel-advanced" class="settings-panel" aria-labelledby="advanced-heading" hidden>
+          <h1 id="advanced-heading">高级</h1><p class="page-description">工时留在本机，存放位置由你选择。</p>
+          <div class="setting-card"><div class="setting-row"><h2>程序安装位置</h2><button class="button" id="show-application">查看位置</button></div><div id="application-path" class="data-directory application-path"></div></div>
+          <div class="setting-card"><h2>数据存储位置</h2><p class="card-description">工时会自动保存到以下文件夹。</p><div id="data-directory" class="data-directory"></div><div class="folder-actions"><button class="button soft" id="change-directory">更改位置</button><button class="button" id="open-directory">打开文件夹</button></div><p class="hint">更改位置会复制现有记录并立即使用新位置。原文件保留；请选择没有拾光工时记录的文件夹。</p></div>
+          <div class="setting-card"><div class="setting-row"><div><h2>导出工时备份</h2><p>把所有日期的记录另存为一个备份文件。</p></div><button class="button" id="export-data">导出备份</button></div></div>
+          <div class="help-card"><h2>记录规则</h2><p>按本机时间在零点分日。工作中锁屏和睡眠继续计时，临时离开不计时；正常退出会签退，暂停状态会保留。</p></div>
+        </section>
+        <div class="settings-feedback" id="settings-feedback" role="status">设置自动保存在本机</div>
+        <div id="settings-error" class="error-message" role="alert" hidden></div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="settings.js"></script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+{
+  "name": "shiguang-work-orb",
+  "version": "1.3.0",
+  "private": true,
+  "description": "拾光 · 会陪你上下班的桌面工作球",
+  "author": {
+    "name": "Hoshi Takyobu",
+    "url": "https://github.com/HoshiTakyobu"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/HoshiTakyobu/shiguang#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HoshiTakyobu/shiguang.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HoshiTakyobu/shiguang/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/clock.test.cjs tests/store.test.cjs tests/settings.test.cjs tests/orb-window.test.cjs",
+    "test:ui": "node tests/electron-smoke.cjs",
+    "test:startup": "node tests/startup-native.cjs",
+    "pack": "node scripts/build.cjs --dir",
+    "dist": "node scripts/build.cjs",
+    "release:prepare": "node scripts/prepare-release.cjs",
+    "check:docs": "node scripts/check-docs.cjs",
+    "test:system": "node --test tests/system.test.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.shiguang.workorb",
+    "productName": "拾光",
+    "copyright": "Copyright © 2026 Hoshi Takyobu",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "signExecutable": false
+    },
+    "nsis": {
+      "artifactName": "Shiguang-${version}-Setup-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "拾光",
+      "uninstallDisplayName": "拾光",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "language": "2052",
+      "license": "LICENSE",
+      "include": "build/installer.nsh",
+      "displayLanguageSelector": true
+    },
+    "portable": {
+      "artifactName": "Shiguang-${version}-Portable-${arch}.${ext}"
+    }
+  }
+}
