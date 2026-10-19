@@ -28,9 +28,9 @@ h1 { display: flex; align-items: center; gap: 16px; font-family: Kuaile, sans-se
 .live-dot { width: 7px; height: 7px; background: #8b9db7; border-radius: 50%; margin-right: 2px; }
 .live-dot.active { background: #6d9965; box-shadow: 0 0 0 3px #83b5751a; }
 .live-dot.paused { background: #df937a; box-shadow: 0 0 0 3px #df937a25; }
-#work-dialog { width: 350px; }
-.work-choices { display: flex; gap: 12px; }
-.work-choices .button { flex: 1; }
+#work-dialog { width: 310px; text-align: center; }
+#work-dialog h3 { margin: 0 0 25px; font-size: 21px; }
+#work-choices { margin: 0 auto 9px; }
 html[lang="en"] h1 { font-family: Nunito, sans-serif; font-weight: 800; letter-spacing: -.4px; }
 html[lang="en"] .month-english { display: none; }
 html[lang="en"] #target-description { display: block; }
@@ -95,6 +95,7 @@ dialog::backdrop { background: #26382a38; backdrop-filter: blur(3px); }
 .edit-mode input:focus-visible + span { outline: 2px solid var(--accent); }
 .duration-inputs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .edit-preview { background: var(--soft); padding: 11px 13px; border-radius: 8px; color: var(--accent); font-size: 14px; margin: 18px 0 0; font-variant-numeric: tabular-nums; }
+.edit-preview.invalid { background: #fff0e9; color: #a4432c; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 23px; }
 .dialog-actions .button { min-width: 86px; }
 .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--ink); color: white; font-size: 14px; border-radius: 10px; padding: 12px 20px; box-shadow: 0 4px 18px #20332020; }

@@ -1,5 +1,6 @@
-import { formatTime, dateKey, monthWeeks, ringColor, targetLabel } from './shared.mjs';
+import { formatTime, dateKey, monthWeeks, ringColor, targetLabel, DAY_LIMIT } from './shared.mjs';
 import { setLanguage, t, weekdays } from './i18n.mjs';
+import { createSplitChoices } from './split-choices.mjs';
 
 const api = window.shiguang;
 let state, shownYear, shownMonth, renderedMonth;
@@ -8,6 +9,8 @@ const weekElements = [];
 const englishMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const $ = (selector) => document.querySelector(selector);
 const circumference = 2 * Math.PI * 21;
+let editSaving = false;
+const workChoices = createSplitChoices($('#work-choices'), { choose: workAction, cancel: () => $('#work-dialog').close() });
 
 function hours(ms) { return (ms / 3600000).toFixed(1).replace(/\.0$/, ''); }
 
@@ -82,11 +85,12 @@ function render() {
   $('#work-status').textContent = t({ working: '上班中', paused: '已暂停', idle: '已下班' }[state.mode]);
   $('#live-dot').classList.toggle('active', state.active);
   $('#live-dot').classList.toggle('paused', state.mode === 'paused');
-  $('#toggle-work').textContent = t(state.mode === 'idle' ? '签到' : state.mode === 'paused' ? '继续工作' : '选择操作');
+  $('#toggle-work').textContent = t(state.mode === 'idle' ? '签到' : '选择操作');
   $('#target-description').textContent = t(' · 满 {target}', { target: targetLabel(state.settings.targetMinutes, state.settings.language) });
   $('.calendar-note').textContent = t('{day}开始 · 点击日期可补录', { day: weekdays(true)[state.settings.weekStart] });
   $('#work-dialog-title').textContent = t(state.mode === 'paused' ? '准备回来啦？' : '休息一下？');
-  $('#work-pause-resume').textContent = t(state.mode === 'paused' ? '继续工作' : '临时离开');
+  workChoices.render(state);
+  if (state.mode === 'idle') $('#work-dialog').close();
   $('#legend-target').textContent = state.settings.targetMinutes % 60 === 0 ? `${state.settings.targetMinutes / 60}h` : `${state.settings.targetMinutes}min`;
   $('#storage-error').hidden = !state.storageError;
   $('#storage-error').textContent = state.storageError || '';
@@ -135,8 +139,15 @@ function updateEditorPreview() {
   const current = state.days[date] || 0;
   const mode = $('input[name="mode"]:checked').value;
   $('#editor-current').textContent = formatTime(current);
-  $('#edit-preview').textContent = t('保存后累计　{time}', { time: formatTime((mode === 'add' ? current : 0) + editorMilliseconds()) });
+  const total = (mode === 'add' ? current : 0) + editorMilliseconds();
+  const validDuration = ['edit-hours', 'edit-minutes', 'edit-seconds'].every(id => $(`#${id}`).validity.valid);
+  const overLimit = Number.isFinite(total) && total > DAY_LIMIT;
+  const invalid = !validDuration || !Number.isFinite(total) || total < 0 || overLimit;
+  $('#edit-preview').classList.toggle('invalid', invalid);
+  $('#edit-preview').textContent = overLimit ? t('补录后的当日总工时不能超过 24 小时') : invalid ? t('请输入 0 至 24 小时之间的有效时长') : t('保存后累计　{time}', { time: formatTime(total) });
+  $('#save-edit').disabled = editSaving || invalid || !$('#edit-date').validity.valid;
   $('#edit-live-hint').hidden = !(date === state.today && state.active);
+  $('#edit-live-hint').textContent = t('今日正在计时，当日最多累计 24 小时，次日继续计时。');
 }
 
 let toastTimer;
@@ -156,6 +167,7 @@ document.querySelectorAll('input[name="mode"]').forEach(input => input.addEventL
 }));
 $('#edit-form').addEventListener('submit', async (event) => {
   event.preventDefault();
+  editSaving = true;
   $('#save-edit').disabled = true;
   $('#edit-error').hidden = true;
   try {
@@ -165,7 +177,7 @@ $('#edit-form').addEventListener('submit', async (event) => {
     $('#edit-dialog').close(); render(); toast(t('工时已保存'));
   } catch (error) {
     $('#edit-error').textContent = error.message; $('#edit-error').hidden = false;
-  } finally { $('#save-edit').disabled = false; }
+  } finally { editSaving = false; updateEditorPreview(); }
 });
 for (const id of ['cancel-edit', 'dismiss-edit']) $(`#${id}`).addEventListener('click', () => $('#edit-dialog').close());
 $('#add-time').addEventListener('click', () => openEditor(state.today));
@@ -183,16 +195,15 @@ $('#next-month').addEventListener('click', () => changeMonth(1));
 $('#go-today').addEventListener('click', resetMonth);
 $('#toggle-work').addEventListener('click', async () => {
   if (state.mode === 'idle') { const result = await api.setMode('working'); if (result.ok) { state = result.value; render(); } }
-  else { $('#work-error').hidden = true; $('#work-dialog').showModal(); }
+  else { $('#work-error').hidden = true; $('#work-dialog').showModal(); workChoices.focus(); }
 });
 async function workAction(mode) {
-  const result = await api.setMode(mode);
-  if (result.ok) { state = result.value; $('#work-dialog').close(); render(); }
-  else { $('#work-error').textContent = result.error; $('#work-error').hidden = false; }
+  try {
+    const result = await api.setMode(mode);
+    if (!result.ok) throw new Error(result.error);
+    state = result.value; $('#work-dialog').close(); render();
+  } catch (error) { $('#work-error').textContent = error.message; $('#work-error').hidden = false; }
 }
-$('#work-pause-resume').addEventListener('click', () => workAction(state.mode === 'paused' ? 'working' : 'paused'));
-$('#work-finish').addEventListener('click', () => workAction('idle'));
-$('#close-work-dialog').addEventListener('click', () => $('#work-dialog').close());
 $('#close').addEventListener('click', () => api.closeCalendar());
 $('#minimize').addEventListener('click', () => api.minimizeCalendar());
 document.addEventListener('keydown', (event) => {

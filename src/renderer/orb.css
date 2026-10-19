@@ -1,6 +1,7 @@
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; user-select: none; }
 body { display: grid; place-items: center; }
+#action-error { position: absolute; inset: auto 7px 0; margin: 0; padding: 5px; border-radius: 8px; background: #fff0e9; color: #923e2e; font-size: 12px; text-align: center; z-index: 3; }
 .orb { --ink: var(--orb-idle-ink); --rim: var(--orb-idle-rim); position: relative; width: 176px; height: 176px; padding: 0; border: 1.5px solid var(--rim); border-radius: 50%; background: radial-gradient(ellipse at 33% 16%, var(--orb-idle-top) 0%, var(--orb-idle-mid) 32%, var(--orb-idle-bottom) 100%); color: var(--ink); box-shadow: inset 0 3px 5px #ffffffd9, inset 0 -7px 12px #507bd526, 0 7px 11px #394f7026; display: flex; align-items: center; flex-direction: column; cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; transition: background .4s, border-color .4s, box-shadow .2s, scale .2s; isolation: isolate; }
 .orb.working { --ink: var(--orb-work-ink); --rim: var(--orb-work-rim); background: radial-gradient(ellipse at 33% 16%, var(--orb-work-top) 0%, var(--orb-work-mid) 30%, var(--orb-work-bottom) 100%); box-shadow: inset 0 3px 5px #ffffffdf, inset 0 -7px 12px #38866120, 0 7px 11px #294b3b26; }
 .orb:hover { scale: 1.025; box-shadow: inset 0 3px 5px #ffffffdf, inset 0 -7px 12px #507bd51a, 0 8px 15px #394f7030; }

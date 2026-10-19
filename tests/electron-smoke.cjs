@@ -52,14 +52,21 @@ async function assertNoOverflow(page) {
 }
 
 async function chooseOrb(orb, choice, screenshot) {
-  const opened = app.waitForEvent('window');
+  const windows = app.windows().length;
   await orb.locator('#orb').click({ force: true });
-  const bubble = await opened;
-  await bubble.waitForLoadState('domcontentloaded');
-  await expect(bubble.locator(choice)).toBeVisible();
-  if (screenshot) await bubble.screenshot({ path: path.join(output, screenshot), omitBackground: true });
-  await bubble.locator(choice).click();
-  await expect.poll(() => bubble.isClosed()).toBe(true);
+  await expect(orb.locator('#orb-choices')).toBeVisible();
+  assert.equal(app.windows().length, windows, 'Actions split the existing orb in place');
+  const choosingState = await orb.evaluate(() => window.shiguang.getState());
+  const points = choosingState.mode === 'paused' ? [[64, 64], [144, 144]] : [[144, 64], [64, 144]];
+  assert.deepEqual(await orb.evaluate(points => points.map(([x, y]) => document.elementFromPoint(x, y).closest('button')?.dataset.choice), points), ['primary', 'finish']);
+  const selector = choice === '#pause-resume' ? '[data-choice="primary"] strong' : '[data-choice="finish"] strong';
+  if (screenshot) {
+    await orb.evaluate(() => document.fonts.ready);
+    await orb.waitForTimeout(300);
+    await orb.screenshot({ path: path.join(output, screenshot), omitBackground: true });
+  }
+  await orb.locator(`#orb-choices ${selector}`).click();
+  await expect(orb.locator('#orb-choices')).not.toBeVisible();
 }
 
 (async () => {
@@ -79,12 +86,36 @@ async function chooseOrb(orb, choice, screenshot) {
     const signedIn = await orb.evaluate(() => window.shiguang.getState());
     await expect.poll(async () => (await orb.evaluate(() => window.shiguang.getState())).days[today], { timeout: 5000 }).toBeGreaterThan(signedIn.days[today] + 1000);
     await orb.screenshot({ path: path.join(output, 'orb-green.png'), omitBackground: true });
-    await chooseOrb(orb, '#pause-resume', 'action-bubble.png');
+    await chooseOrb(orb, '#pause-resume', 'orb-choices-working.png');
     await expect(orb.locator('#status')).toHaveText('已暂停');
     const paused = await orb.evaluate(() => window.shiguang.getState());
     await orb.waitForTimeout(1100);
     assert.equal((await orb.evaluate(() => window.shiguang.getState())).days[today], paused.days[today]);
     await orb.screenshot({ path: path.join(output, 'orb-paused.png'), omitBackground: true });
+    // Paused mode offers either resume or a direct clock-out, without counting the break.
+    await orb.locator('#orb').click({ force: true });
+    await expect(orb.locator('#orb-choices')).toBeVisible();
+    await expect(orb.locator('[data-choice="primary"] strong')).toHaveText('我回来了');
+    await expect(orb.locator('[data-choice="finish"] strong')).toHaveText('我要下班');
+    assert.deepEqual(await orb.evaluate(() => [[64, 64], [144, 144]].map(([x, y]) => document.elementFromPoint(x, y).closest('button')?.dataset.choice)), ['primary', 'finish']);
+    await orb.keyboard.press('Escape');
+    await expect(orb.locator('#orb-choices')).not.toBeVisible();
+    assert.equal((await orb.evaluate(() => window.shiguang.getState())).mode, 'paused');
+    await orb.locator('#orb').click({ force: true });
+    await expect(orb.locator('#orb-choices')).toBeVisible();
+    await orb.locator('[data-choice="cancel"]').click();
+    await expect(orb.locator('#orb-choices')).not.toBeVisible();
+    await orb.locator('#orb').click({ force: true });
+    await expect(orb.locator('#orb-choices')).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().endsWith('/orb.html')).emit('blur'));
+    await expect(orb.locator('#orb-choices')).not.toBeVisible();
+    assert.equal((await orb.evaluate(() => window.shiguang.getState())).mode, 'paused');
+    await chooseOrb(orb, '#clock-out', 'orb-choices-paused.png');
+    await expect(orb.locator('#status')).toHaveText('下班啦');
+    assert.equal((await orb.evaluate(() => window.shiguang.getState())).days[today], paused.days[today]);
+    await orb.locator('#orb').click({ force: true });
+    await expect(orb.locator('#status')).toHaveText('上班中');
+    await chooseOrb(orb, '#pause-resume');
     await chooseOrb(orb, '#pause-resume');
     await expect(orb.locator('#status')).toHaveText('上班中');
 
@@ -122,6 +153,18 @@ async function chooseOrb(orb, choice, screenshot) {
     await expect(calendar.locator(`[data-date="${emptyDate}"] svg`)).toHaveCSS('visibility', 'hidden');
     await calendar.screenshot({ path: path.join(output, 'calendar-preview.png'), omitBackground: true });
 
+    // Both entry points expose the same pair of choices; cancellation changes nothing.
+    await calendar.locator('#toggle-work').click();
+    await expect(calendar.locator('#work-choices [data-choice="primary"] strong')).toHaveText('我先溜会');
+    await calendar.locator('#work-choices [data-choice="primary"] strong').click();
+    await expect(orb.locator('#status')).toHaveText('已暂停');
+    await calendar.locator('#toggle-work').click();
+    await expect(calendar.locator('#work-choices [data-choice="primary"] strong')).toHaveText('我回来了');
+    await calendar.locator('#work-choices [data-choice="finish"] strong').click();
+    await expect(orb.locator('#status')).toHaveText('下班啦');
+    await calendar.locator('#toggle-work').click();
+    await expect(orb.locator('#status')).toHaveText('上班中');
+
     // Supplement and correct historical records using the date entry point.
     await calendar.locator(`[data-date="${emptyDate}"]`).click();
     await expect(calendar.locator('#edit-dialog')).toBeVisible();
@@ -139,6 +182,21 @@ async function chooseOrb(orb, choice, screenshot) {
     await calendar.locator('#save-edit').click();
     await expect(calendar.locator('#edit-dialog')).not.toBeVisible();
     assert.equal((await calendar.evaluate(() => window.shiguang.getState())).days[emptyDate], 1.75 * HOUR);
+
+    // Overflow is rejected in the editor before saving; no illegal HH:MM:SS preview.
+    await calendar.locator(`[data-date="${emptyDate}"]`).click();
+    await calendar.locator('#edit-hours').fill('24');
+    await expect(calendar.locator('#edit-preview')).toHaveText('补录后的当日总工时不能超过 24 小时');
+    await expect(calendar.locator('#save-edit')).toBeDisabled();
+    await calendar.locator('input[value="replace"]').check();
+    await calendar.locator('#edit-hours').fill('24');
+    await calendar.locator('#edit-minutes').fill('0');
+    await calendar.locator('#edit-seconds').fill('1');
+    await expect(calendar.locator('#save-edit')).toBeDisabled();
+    await calendar.locator('#edit-seconds').fill('0');
+    await expect(calendar.locator('#edit-preview')).toContainText('24:00:00');
+    await expect(calendar.locator('#save-edit')).toBeEnabled();
+    await calendar.locator('#cancel-edit').click();
 
     // Adding work to today preserves the live timer.
     const beforeAddition = await calendar.evaluate(() => window.shiguang.getState());
@@ -169,6 +227,14 @@ async function chooseOrb(orb, choice, screenshot) {
     await expect(calendar.locator('html')).toHaveAttribute('lang', 'en');
     await expect(calendar.locator('h1')).toContainText('Let your days glow');
     await expect(orb.locator('#status')).toHaveText('Working');
+    await calendar.locator('#toggle-work').click();
+    await expect(calendar.locator('#work-choices [data-choice="primary"] strong')).toHaveText('Take a break');
+    await calendar.locator('#work-choices [data-choice="primary"] strong').click();
+    await calendar.locator('#toggle-work').click();
+    await expect(calendar.locator('#work-choices [data-choice="primary"] strong')).toHaveText("I'm back");
+    await calendar.waitForTimeout(300);
+    await calendar.screenshot({ path: path.join(output, 'calendar-choices-english.png'), omitBackground: true });
+    await calendar.locator('#work-choices [data-choice="primary"] strong').click();
     await settingsPage.locator('#week-start').selectOption('0');
     await expect(calendar.locator('.weekday').first()).toHaveText('Sun');
     const sundayKeys = await calendar.locator('.dates-row').first().locator('.day').evaluateAll(els => els.map(el => el.dataset.date));
@@ -239,6 +305,16 @@ async function chooseOrb(orb, choice, screenshot) {
     // Reopening an existing calendar always resets to the actual current month.
     await orb.evaluate(() => window.shiguang.openCalendar());
     await expect(calendar.locator('#month-title')).toHaveText(`${year} 年 ${String(month + 1).padStart(2, '0')} 月`);
+    const beforeCap = await calendar.evaluate(() => window.shiguang.getState());
+    const capped = await calendar.evaluate(async ({ today, HOUR }) => window.shiguang.adjustDay({ date: today, mode: 'replace', milliseconds: 24 * HOUR - 1000 }), { today, HOUR });
+    assert.equal(capped.ok, true);
+    await expect(calendar.locator('#today-time')).toHaveText('24:00:00');
+    await orb.waitForTimeout(1100);
+    await expect(orb.locator('#time')).toHaveText('24:00:00');
+    assert.equal((await calendar.evaluate(() => window.shiguang.getState())).days[today], 24 * HOUR);
+    const capRejected = await calendar.evaluate(today => window.shiguang.adjustDay({ date: today, mode: 'add', milliseconds: 1 }), today);
+    assert.equal(capRejected.ok, false);
+    await calendar.evaluate(({ today, ms }) => window.shiguang.adjustDay({ date: today, mode: 'replace', milliseconds: Math.floor(ms) }), { today, ms: beforeCap.days[today] });
     await calendar.locator('#close').click();
     await expect.poll(async () => app.windows().length).toBe(1);
     await expect(orb.locator('#status')).toHaveText('上班中');
@@ -309,7 +385,7 @@ async function chooseOrb(orb, choice, screenshot) {
     assert.equal(afterDock.mode, 'paused');
     assert.equal(afterDock.days[today], beforeDock.days[today]);
     assert.deepEqual(errors, []);
-    console.log('PASS: pause/resume bubbles, break persistence, both screen edges, mini orb and gaze, restore without clocking in, bilingual UI, all week starts, edits, data migration, and existing orb/calendar behavior; no renderer errors.');
+    console.log('PASS: in-place split orb, all pause/resume/clock-out paths, cancellation, daily limit validation, break persistence, both screen edges, mini orb and gaze, bilingual UI, all week starts, edits, data migration, and existing orb/calendar behavior; no renderer errors.');
   } finally {
     if (app) await app.close();
     const resolved = path.resolve(dataDir);

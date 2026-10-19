@@ -62,11 +62,12 @@ class OrbWindow {
     if (this.side) this.dock(this.side, area, bounds.y);
     else this.win.setBounds(normalBounds(area, bounds.x, bounds.y));
   }
-  hitTest(point) {
+  hitTest(point, split = false) {
     const b = this.win.getBounds();
     const cx = this.side === 'left' ? -20 : this.side === 'right' ? 52 : SIZE / 2;
     const cy = this.side ? 50 : SIZE / 2;
-    return Math.hypot(point.x - b.x - cx, point.y - b.y - cy) <= (this.side ? 41 : 91);
+    // Split halves move outward, including on hover; their outer rims remain clickable.
+    return Math.hypot(point.x - b.x - cx, point.y - b.y - cy) <= (this.side ? 41 : split ? 98 : 91);
   }
   lookAt(point) {
     const b = this.win.getBounds();

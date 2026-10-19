@@ -18,12 +18,11 @@ const hasLock = testMode || app.requestSingleInstanceLock();
 let orbWindow, calendarWindow, settingsWindow, tray, clock, store, settingsStore, settings, ticker, lastSave = 0, lastBroadcast = 0, quitting = false;
 let startupError = null;
 let startup;
-let orbLayout, actionsWindow, instanceLease;
+let orbLayout, actionsOpen = false, instanceLease;
 const tr = (text, values) => translate(text, settings?.language, values);
 const errorText = text => translateError(text, settings?.language);
 let doubleClickMs = 550;
 const ORB_SIZE = 208;
-const ORB_RADIUS = 91;
 const preferencesFile = () => path.join(app.getPath('userData'), 'preferences.json');
 
 function getDoubleClickTime() {
@@ -36,7 +35,7 @@ function getDoubleClickTime() {
 }
 
 function snapshot() {
-  return { ...clock.snapshot(), target: settings.targetMinutes * 60000, settings: { theme: settings.theme, targetMinutes: settings.targetMinutes, launchAtLogin: settings.launchAtLogin, language: settings.language, weekStart: settings.weekStart }, docked: orbLayout?.side || null, doubleClickMs, storageError: storageError ? errorText(storageError) : null };
+  return { ...clock.snapshot(), actionsOpen, target: settings.targetMinutes * 60000, settings: { theme: settings.theme, targetMinutes: settings.targetMinutes, launchAtLogin: settings.launchAtLogin, language: settings.language, weekStart: settings.weekStart }, docked: orbLayout?.side || null, doubleClickMs, storageError: storageError ? errorText(storageError) : null };
 }
 
 function startupExecutable() {
@@ -89,7 +88,7 @@ function persist() {
 
 function broadcast() {
   const value = snapshot();
-  for (const win of [orbWindow, calendarWindow, settingsWindow, actionsWindow]) {
+  for (const win of [orbWindow, calendarWindow, settingsWindow]) {
     if (win && !win.isDestroyed()) win.webContents.send('clock:state', value);
   }
 }
@@ -102,6 +101,7 @@ function toggle() {
 
 function transition(mode) {
   clock.setMode(mode);
+  actionsOpen = false;
   persist();
   updateTray();
   broadcast();
@@ -109,17 +109,14 @@ function transition(mode) {
 }
 
 function openActions() {
-  if (actionsWindow) { actionsWindow.close(); return; }
-  const bounds = orbWindow.getBounds(), area = screen.getDisplayMatching(bounds).workArea;
-  const width = 270, height = 235;
-  const x = Math.max(area.x, Math.min(area.x + area.width - width, bounds.x + bounds.width / 2 - width / 2));
-  const y = bounds.y - height + 8 >= area.y ? bounds.y - height + 8 : Math.min(area.y + area.height - height, bounds.y + bounds.height - 8);
-  const win = secureWindow({ x: Math.round(x), y: Math.round(y), width, height, frame: false, transparent: true, resizable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: false, title: tr('选择操作') });
-  actionsWindow = win;
-  win.loadFile(path.join(__dirname, 'renderer/actions.html'));
-  win.once('ready-to-show', () => win.show());
-  win.on('blur', () => { if (!win.isDestroyed()) win.close(); });
-  win.on('closed', () => { if (actionsWindow === win) actionsWindow = null; });
+  actionsOpen = !actionsOpen;
+  broadcast();
+}
+
+function closeActions() {
+  if (!actionsOpen) return;
+  actionsOpen = false;
+  broadcast();
 }
 
 function safePosition(x, y) {
@@ -171,12 +168,14 @@ function createOrb() {
   orbLayout = new OrbWindow(orbWindow, screen, saved);
   orbWindow.loadFile(path.join(__dirname, 'renderer/orb.html'));
   orbWindow.once('ready-to-show', () => orbWindow.showInactive());
+  orbWindow.on('blur', closeActions);
   orbWindow.on('close', (event) => {
     if (!quitting) { event.preventDefault(); orbWindow.hide(); updateTray(); }
   });
 }
 
 function openCalendar() {
+  closeActions();
   if (calendarWindow && !calendarWindow.isDestroyed()) {
     calendarWindow.webContents.send('calendar:reset');
     if (calendarWindow.isMinimized()) calendarWindow.restore();
@@ -199,6 +198,7 @@ function openCalendar() {
 }
 
 function openSettings(tab = 'general') {
+  closeActions();
   const selected = ['general', 'work', 'advanced'].includes(tab) ? tab : 'general';
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send('settings:tab', selected);
@@ -251,8 +251,7 @@ function attachIPC() {
   const fromOrb = (event) => event.sender === orbWindow?.webContents;
   const fromCalendar = (event) => event.sender === calendarWindow?.webContents;
   const fromSettings = (event) => event.sender === settingsWindow?.webContents;
-  const fromActions = event => event.sender === actionsWindow?.webContents;
-  const fromApp = (event) => fromOrb(event) || fromCalendar(event) || fromSettings(event) || fromActions(event);
+  const fromApp = (event) => fromOrb(event) || fromCalendar(event) || fromSettings(event);
   ipcMain.handle('clock:get', (event) => fromApp(event) ? snapshot() : null);
   ipcMain.handle('translations:get', event => fromApp(event) ? require('./locales/en.json') : {});
   ipcMain.handle('clock:toggle', (event) => fromApp(event) ? toggle() : null);
@@ -262,7 +261,7 @@ function attachIPC() {
     catch (error) { return { ok: false, error: errorText(error.message || '操作未完成，请重试。') }; }
   });
   handleAction('clock:set-mode', fromApp, (_event, mode) => transition(mode));
-  ipcMain.on('actions:close', event => { if (fromActions(event)) actionsWindow.close(); });
+  ipcMain.on('actions:close', event => { if (fromOrb(event)) closeActions(); });
   ipcMain.handle('orb:activate', event => {
     if (!fromOrb(event)) return null;
     if (orbLayout.side) { orbLayout.restore(); savePosition(); return snapshot(); }
@@ -359,7 +358,7 @@ if (!hasLock) {
       // Transparent corners pass clicks through to the desktop.
       if (orbWindow && !orbWindow.isDestroyed() && orbWindow.isVisible()) {
         const cursor = screen.getCursorScreenPoint();
-        orbWindow.setIgnoreMouseEvents(!orbLayout.drag && !orbLayout.hitTest(cursor), { forward: true });
+        orbWindow.setIgnoreMouseEvents(!orbLayout.drag && !orbLayout.hitTest(cursor, actionsOpen), { forward: true });
         if (orbLayout.side) orbLayout.lookAt(cursor);
       }
     }, 50);

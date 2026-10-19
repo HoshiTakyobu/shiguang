@@ -1,5 +1,6 @@
 const HOUR = 60 * 60 * 1000;
 const DAILY_TARGET = 8 * HOUR;
+const DAY_LIMIT = 24 * HOUR;
 
 function dayKey(value) {
   const date = new Date(value);
@@ -32,6 +33,9 @@ class WorkClock {
   constructor(state = { version: 1, days: {}, activeSince: null }, now = Date.now) {
     if (!validateState(state)) throw new Error('Invalid work clock data');
     this.state = structuredClone(state);
+    // Older versions could exceed one day after a manual correction followed
+    // by live timing. Keep every date, but normalize its daily total on load.
+    for (const key of Object.keys(this.state.days)) this.state.days[key] = Math.min(DAY_LIMIT, this.state.days[key]);
     this.state.mode ??= state.activeSince === null ? 'idle' : 'working';
     this.now = now;
   }
@@ -40,7 +44,7 @@ class WorkClock {
     const days = { ...this.state.days };
     if (this.state.activeSince !== null) {
       for (const [key, duration] of Object.entries(splitInterval(this.state.activeSince, at))) {
-        days[key] = (days[key] || 0) + duration;
+        days[key] = Math.min(DAY_LIMIT, (days[key] || 0) + duration);
       }
     }
     return { active: this.state.activeSince !== null, mode: this.state.mode, days, today: dayKey(at), now: at, target: DAILY_TARGET };
@@ -73,9 +77,9 @@ class WorkClock {
     if (!parsed || !Number.isFinite(parsed.getTime()) || dayKey(parsed) !== date) throw new Error('请选择有效的日期');
     if (date > dayKey(at)) throw new Error('不能补录未来日期的工时');
     if (!['add', 'replace'].includes(mode)) throw new Error('请选择补充时长或修正总时长');
-    if (!Number.isInteger(milliseconds) || milliseconds < 0 || milliseconds > 24 * HOUR) throw new Error('请输入 0 至 24 小时之间的有效时长');
+    if (!Number.isInteger(milliseconds) || milliseconds < 0 || milliseconds > DAY_LIMIT) throw new Error('请输入 0 至 24 小时之间的有效时长');
     const total = mode === 'add' ? (this.snapshot(at).days[date] || 0) + milliseconds : milliseconds;
-    if (total > 24 * HOUR) throw new Error('补录后的当日总工时不能超过 24 小时');
+    if (total > DAY_LIMIT) throw new Error('补录后的当日总工时不能超过 24 小时');
     this.checkpoint(at);
     if (total === 0) delete this.state.days[date];
     else this.state.days[date] = total;
@@ -83,4 +87,4 @@ class WorkClock {
   }
 }
 
-module.exports = { WorkClock, dayKey, splitInterval, validateState, HOUR, DAILY_TARGET };
+module.exports = { WorkClock, dayKey, splitInterval, validateState, HOUR, DAILY_TARGET, DAY_LIMIT };

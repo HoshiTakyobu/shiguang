@@ -31,6 +31,42 @@ test('all seven week starts cover each month day once and keep actual weekends',
   }
 });
 
+test('clocking out directly from a break never counts the break or resumes the timer', () => {
+  const clock = new WorkClock();
+  clock.setMode('working', local(19, 9));
+  clock.setMode('paused', local(19, 12));
+  const saved = clock.checkpoint(local(20, 1));
+  const reopened = new WorkClock(saved);
+  reopened.setMode('idle', local(20, 8));
+  assert.equal(reopened.snapshot(local(20, 10)).mode, 'idle');
+  assert.deepEqual(reopened.snapshot(local(20, 10)).days, { '2026-10-19': 3 * HOUR });
+});
+
+test('live timing after a correction caps the date at 24 hours, then counts the next date', () => {
+  const clock = new WorkClock();
+  clock.setMode('working', local(19, 9));
+  clock.adjustDay({ date: '2026-10-19', mode: 'replace', milliseconds: 24 * HOUR - 1000 }, local(19, 10));
+  assert.equal(clock.snapshot(local(19, 10, 0, 1)).days['2026-10-19'], 24 * HOUR);
+  const saved = clock.checkpoint(local(19, 18));
+  assert.equal(saved.days['2026-10-19'], 24 * HOUR);
+  const restarted = new WorkClock(saved);
+  assert.deepEqual(restarted.snapshot(local(20, 1)).days, { '2026-10-19': 24 * HOUR, '2026-10-20': HOUR });
+  assert.equal(restarted.snapshot(local(20, 1)).mode, 'working');
+  restarted.setMode('paused', local(20, 1));
+  restarted.setMode('working', local(20, 2));
+  assert.equal(restarted.snapshot(local(20, 3)).days['2026-10-20'], 2 * HOUR);
+});
+
+test('legacy daily overflows normalize without rejecting history or capping weekly/monthly sums', async () => {
+  const original = { version: 1, days: { '2026-10-18': 30 * HOUR, '2026-10-19': 24 * HOUR }, activeSince: null };
+  const clock = new WorkClock(original);
+  assert.equal(original.days['2026-10-18'], 30 * HOUR);
+  assert.deepEqual(clock.snapshot(local(19, 12)).days, { '2026-10-18': 24 * HOUR, '2026-10-19': 24 * HOUR });
+  const { formatTime } = await import('../src/renderer/shared.mjs');
+  assert.equal(formatTime(Object.values(clock.snapshot(local(19, 12)).days).reduce((a, b) => a + b, 0)), '48:00:00');
+  assert.throws(() => clock.adjustDay({ date: '2026-10-19', mode: 'add', milliseconds: 1 }, local(19, 12)), /24/);
+});
+
 test('signup, signout, and repeated sessions accumulate without counting breaks', () => {
   let now = local(19, 9);
   const clock = new WorkClock(undefined, () => now);

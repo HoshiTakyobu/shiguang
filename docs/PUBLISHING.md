@@ -1,12 +1,12 @@
 # 在另一台电脑发布拾光
 
-目标仓库：**[HoshiTakyobu/shiguang](https://github.com/HoshiTakyobu/shiguang)**。作者与发布者署名：**Hoshi Takyobu**。当前版本 **1.3.0**，MIT 开源。
+目标仓库：**[HoshiTakyobu/shiguang](https://github.com/HoshiTakyobu/shiguang)**。作者与发布者署名：**Hoshi Takyobu**。当前版本 **1.4.0**，MIT 开源。
 
 这份源码包含 GitHub 首页、截图、许可证、安装配置和自动发布工作流。生成本地文件不会自动创建远程仓库；需要在有 GitHub 登录状态的电脑上完成下面步骤。
 
 ## 一、上传项目源码
 
-1. 将发布资料中的 `Shiguang-1.3.0-Source.zip` 复制到另一台电脑并解压，进入包含 `package.json` 的文件夹。
+1. 将发布资料中的 `Shiguang-1.4.0-Source.zip` 复制到另一台电脑并解压，进入包含 `package.json` 的文件夹。
 2. 登录 GitHub，创建 **Public** 仓库 `HoshiTakyobu/shiguang`。创建时不要勾选自动生成 README、License 或 `.gitignore`，因为源码已有这些文件。
 3. 安装 Git。在源码文件夹中打开 PowerShell，运行：
 
@@ -14,7 +14,7 @@
 git init -b main
 git add .
 git status
-git commit -m "Release Shiguang 1.3.0"
+git commit -m "Release Shiguang 1.4.0"
 git remote add origin https://github.com/HoshiTakyobu/shiguang.git
 git push -u origin main
 ```
@@ -34,8 +34,8 @@ Topics 可用：`electron`、`windows`、`desktop-pet`、`time-tracker`、`calen
 首次上传后，先确认仓库 Actions 页中的 **CI** 成功，然后推送版本标签：
 
 ```powershell
-git tag v1.3.0
-git push origin v1.3.0
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 **Release** 工作流会在 GitHub 的 Windows 机器上安装依赖，核对版本，运行测试，构建安装版与免安装版，生成源码包和校验值，再创建 Release 并上传附件。另一台电脑不需要安装 Node.js 或本地打包环境。首次构建可能需要数分钟。
@@ -44,9 +44,9 @@ git push origin v1.3.0
 
 成功后检查 Releases 页是否包含：
 
-- `Shiguang-1.3.0-Setup-x64.exe`
-- `Shiguang-1.3.0-Portable-x64.exe`
-- `Shiguang-1.3.0-Source.zip`
+- `Shiguang-1.4.0-Setup-x64.exe`
+- `Shiguang-1.4.0-Portable-x64.exe`
+- `Shiguang-1.4.0-Source.zip`
 - `SHA256SUMS.txt`
 
 发布过程先建立草稿，附件完整上传后才设为公开。上传失败可在 Actions 中重新运行失败的工作流；若已公开同名版本，脚本会停止，避免覆盖别人已下载的文件。Release 的安装包无数字签名，不会显示经证书验证的发布者。
@@ -55,7 +55,7 @@ git push origin v1.3.0
 
 如果想使用发布资料内的成品，完成源码上传后，在 GitHub 的 **Releases → Draft a new release** 中操作：
 
-1. 输入新标签 `v1.3.0`，目标选择 `main`，标题填写“拾光 1.3.0”。
+1. 输入新标签 `v1.4.0`，目标选择 `main`，标题填写“拾光 1.4.0”。
 2. 将随包的 `RELEASE_NOTES.md` 内容复制到描述。
 3. 拖入上面的两个 EXE、Source ZIP 和 `SHA256SUMS.txt`。
 4. 检查后点击 **Publish release**。

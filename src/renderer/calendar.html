@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'">
   <title>拾光 · 工时日历</title>
-  <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="calendar.css">
+  <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="calendar.css"><link rel="stylesheet" href="split-choices.css">
 </head>
 <body>
   <main class="app-shell">
@@ -45,7 +45,7 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" hidden></div>
-  <dialog id="work-dialog" aria-labelledby="work-dialog-title"><div class="dialog-heading"><h3 id="work-dialog-title">休息一下？</h3><button id="close-work-dialog" class="dialog-close" aria-label="取消">×</button></div><div class="work-choices"><button id="work-pause-resume" class="button primary">临时离开</button><button id="work-finish" class="button">下班啦</button></div><p id="work-error" class="error-message" hidden></p></dialog>
+  <dialog id="work-dialog" aria-labelledby="work-dialog-title"><h3 id="work-dialog-title">休息一下？</h3><div id="work-choices"></div><p id="work-error" class="error-message" role="alert" hidden></p></dialog>
   <script type="module" src="calendar.js"></script>
 </body>
 </html>

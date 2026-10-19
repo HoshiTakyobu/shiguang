@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'">
   <title>拾光 · 桌面工作球</title>
-  <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="orb.css">
+  <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="orb.css"><link rel="stylesheet" href="split-choices.css">
 </head>
 <body>
   <button id="orb" class="orb" type="button" aria-label="下班啦，单击签到，双击打开工时日历" title="单击签到 · 双击看日历 · 按住拖动 · 右键更多">
@@ -17,6 +17,8 @@
     <span class="action" id="action">签到</span>
     <span class="save-warning" id="save-warning" hidden>暂未保存</span>
   </button>
+  <div id="orb-choices" hidden></div>
+  <p id="action-error" role="alert" hidden></p>
   <script type="module" src="orb.js"></script>
 </body>
 </html>

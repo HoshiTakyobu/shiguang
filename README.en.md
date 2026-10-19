@@ -16,16 +16,23 @@ A playful, local-first desktop companion for tracking personal work hours on Win
 
 ## Features
 
-- Click the blue orb to clock in. While working, click for a little bubble with Take a break and Clock out. Pauses appear in warm coral and do not count toward work time.
+- Click the blue orb to clock in. While working, click to split it diagonally into two smiling companions: coral **Take a break** at the upper right and blue **Clock out** at the lower left. While paused, choose green **I'm back** at the upper left or blue **Clock out** at the lower right. Breaks do not count toward work time.
 - Drag the orb to either screen edge to shrink it into a tiny peeking companion, with only one quarter showing and eyes following your cursor. Click or drag it out to restore it.
 - Double-click to open this month's calendar without changing the work status.
-- Watch today's cumulative `HH:MM:SS` update live. Sessions crossing midnight are split by local date.
+- Watch today's cumulative `HH:MM:SS` update live, capped at `24:00:00` per day. Sessions crossing midnight are split by local date; weekly and monthly totals may exceed 24 hours.
 - Clockwise date rings start at 12 o'clock and grow greener toward your daily goal, eight hours by default. Dates with no work have no ring.
 - Choose any day as the start of your week. Weekly totals follow that choice, including dates across month boundaries. Monthly totals and completed days are shown separately.
 - Add missing time or correct a day's total, including while today's timer is active.
 - Three themes, a configurable ring target, Windows login startup, data relocation and backup export.
 - Switch between English and Simplified Chinese in settings. Offline operation with bundled fonts; no account or cloud service.
 - One production instance per computer, even when launched from another folder.
+
+<p align="center">
+<img src="docs/images/orb-choices-working.png" width="208" alt="Working: choose a break or clock out" />
+<img src="docs/images/orb-choices-paused.png" width="208" alt="Paused: resume or clock out directly" />
+</p>
+
+Click either half to choose. The center cross, Escape, or clicking another window dismisses the desktop choices without changing your status. The calendar uses the same split-orb controls.
 
 ## Install
 
@@ -42,7 +49,7 @@ Current builds are unsigned. Windows may show an unknown-publisher or SmartScree
 
 ## Timing and data
 
-Working time includes lock and sleep time; paused time does not. A pause survives midnight and application restarts. Normal exit saves and clocks out an active session, while preserving pauses. After an abnormal interruption, the previous state resumes; if it was working, the interruption counts. Rings stop growing at the goal, while work time continues to accumulate. This is a personal time log with editable records.
+Working time includes lock and sleep time; paused time does not. A pause survives midnight and application restarts. Normal exit saves and clocks out an active session, while preserving pauses. After an abnormal interruption, the previous state resumes; if it was working, the interruption counts. Rings stop growing at the goal, while work time continues up to 24 hours per day, then counts on the next date. Corrections exceeding 24 hours are rejected; existing daily overflows are normalized to 24 hours without removing dates. Weekly and monthly sums remain uncapped. This is a personal time log with editable records.
 
 Settings → Advanced lets you move the data folder or export a backup. Data does not sync between computers. See the [Chinese user guide](docs/USAGE.md) for migration and restore instructions.
 

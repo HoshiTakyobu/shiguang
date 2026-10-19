@@ -20,4 +20,7 @@ test('left/right docking stays inside a monitor, exposes a quarter of an 80px or
   assert.equal(orb.side, null); assert.equal(bounds.width, 208);
   orb.dock('right', area); orb.restore();
   assert.equal(orb.side, null); assert.ok(bounds.x + bounds.width < area.x + area.width);
+  assert.equal(orb.hitTest({ x: bounds.x + 198, y: bounds.y + 104 }), false);
+  assert.equal(orb.hitTest({ x: bounds.x + 198, y: bounds.y + 104 }, true), true, 'Expanded half-orb rims receive mouse input');
+  assert.equal(orb.hitTest({ x: bounds.x + 4, y: bounds.y + 4 }, true), false, 'Transparent corners still pass through');
 });
