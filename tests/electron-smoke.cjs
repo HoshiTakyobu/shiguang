@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const assert = require('node:assert/strict');
-const { dayKey, HOUR } = require('../src/clock.cjs');
+const { WorkClock, dayKey, HOUR } = require('../src/clock.cjs');
 
 const root = path.resolve(__dirname, '..');
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shiguang-ui-test-'));
@@ -166,7 +166,41 @@ async function chooseOrb(orb, choice, screenshot) {
     await expect(orb.locator('#status')).toHaveText('上班中');
 
     // Supplement and correct historical records using the date entry point.
-    await calendar.locator(`[data-date="${emptyDate}"]`).click();
+    await calendar.locator(`[data-date="${today}"]`).click();
+    await expect(calendar.locator('#day-dialog')).toBeVisible();
+    await expect(calendar.locator('#day-events [data-type="clock-in"]').first()).toBeVisible();
+    await expect(calendar.locator('#day-events [data-type="pause"]').first()).toBeVisible();
+    await expect(calendar.locator('#day-events [data-type="resume"]').first()).toBeVisible();
+    await expect(calendar.locator('#day-events [data-type="clock-out"]').first()).toBeVisible();
+    await expect(calendar.locator('#day-intervals .working').first()).toBeVisible();
+    await expect(calendar.locator('#day-intervals .paused').first()).toBeVisible();
+    await expect(calendar.locator('#day-legacy')).toBeVisible();
+    const detailed = await calendar.evaluate(date => window.shiguang.getDayDetails(date), today);
+    assert.equal(detailed.ok, true);
+    assert.ok(detailed.value.events.every(event => Number.isFinite(event.at)));
+    assert.deepEqual(await calendar.locator('#day-events time').evaluateAll(times => times.map(time => time.dateTime)),
+      detailed.value.events.map(event => new Date(event.at).toISOString()), 'Every saved operation has its exact timestamp in the timeline');
+    assert.deepEqual(await calendar.locator('#day-events time').allTextContents(), detailed.value.events.map(event => {
+      const date = new Date(event.at);
+      return [date.getHours(), date.getMinutes(), date.getSeconds()].map(value => String(value).padStart(2, '0')).join(':');
+    }));
+    const liveTotal = await calendar.locator('#day-total').textContent();
+    await expect.poll(() => calendar.locator('#day-total').textContent()).not.toBe(liveTotal);
+    await calendar.screenshot({ path: path.join(output, 'day-details.png'), omitBackground: true });
+    await calendar.locator('#close-day').click();
+    // Reopen another date before the previous IPC reply or close event arrives.
+    await calendar.evaluate(({ today, emptyDate }) => {
+      document.querySelector(`[data-date="${today}"]`).click();
+      document.querySelector('#close-day').click();
+      document.querySelector(`[data-date="${emptyDate}"]`).click();
+    }, { today, emptyDate });
+    await expect(calendar.locator('#day-dialog')).toBeVisible();
+    await expect(calendar.locator('#day-dialog')).toHaveAttribute('aria-busy', 'false');
+    await expect(calendar.locator('#day-date')).toHaveText(emptyDate);
+    await expect(calendar.locator('#day-empty')).toBeVisible();
+    await expect(calendar.locator('#day-events .timeline-event')).toHaveCount(0);
+    await expect(calendar.locator('#day-total')).toHaveText('00:00:00');
+    await calendar.locator('#edit-day').click();
     await expect(calendar.locator('#edit-dialog')).toBeVisible();
     await calendar.locator('#edit-hours').fill('2');
     await calendar.locator('#edit-minutes').fill('30');
@@ -176,6 +210,10 @@ async function chooseOrb(orb, choice, screenshot) {
     await expect(calendar.locator(`[data-date="${emptyDate}"]`)).toHaveClass(/has-work/);
     assert.equal((await calendar.evaluate(() => window.shiguang.getState())).days[emptyDate], 2.5 * HOUR);
     await calendar.locator(`[data-date="${emptyDate}"]`).click();
+    await expect(calendar.locator('#day-events [data-type="adjust"]')).toHaveCount(1);
+    await expect(calendar.locator('#day-adjusted')).toBeVisible();
+    await expect(calendar.locator('#day-events [data-type="adjust"] time')).toContainText(today);
+    await calendar.locator('#edit-day').click();
     await calendar.locator('input[value="replace"]').check();
     await calendar.locator('#edit-hours').fill('1');
     await calendar.locator('#edit-minutes').fill('45');
@@ -185,6 +223,8 @@ async function chooseOrb(orb, choice, screenshot) {
 
     // Overflow is rejected in the editor before saving; no illegal HH:MM:SS preview.
     await calendar.locator(`[data-date="${emptyDate}"]`).click();
+    await expect(calendar.locator('#day-events [data-type="adjust"]')).toHaveCount(2);
+    await calendar.locator('#edit-day').click();
     await calendar.locator('#edit-hours').fill('24');
     await expect(calendar.locator('#edit-preview')).toHaveText('补录后的当日总工时不能超过 24 小时');
     await expect(calendar.locator('#save-edit')).toBeDisabled();
@@ -197,6 +237,16 @@ async function chooseOrb(orb, choice, screenshot) {
     await expect(calendar.locator('#edit-preview')).toContainText('24:00:00');
     await expect(calendar.locator('#save-edit')).toBeEnabled();
     await calendar.locator('#cancel-edit').click();
+
+    // Future dates can be inspected, and closing details keeps the calendar open.
+    await calendar.locator('#next-month').click();
+    await calendar.locator('.day.is-future').first().click();
+    await expect(calendar.locator('#day-empty')).toBeVisible();
+    await expect(calendar.locator('#edit-day')).toBeDisabled();
+    await calendar.keyboard.press('Escape');
+    await expect(calendar.locator('#day-dialog')).not.toBeVisible();
+    await expect(calendar.locator('#calendar-grid')).toBeVisible();
+    await calendar.locator('#go-today').click();
 
     // Adding work to today preserves the live timer.
     const beforeAddition = await calendar.evaluate(() => window.shiguang.getState());
@@ -214,6 +264,89 @@ async function chooseOrb(orb, choice, screenshot) {
     await settingsPage.waitForLoadState('domcontentloaded');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.getTitle().includes('设置')).setSize(850, 720));
     await expect(settingsPage.locator('#author')).toHaveText('Hoshi Takyobu');
+    // Record through browser events only; the native callback test covers Windows delivery.
+    await settingsPage.locator('[data-tab="shortcuts"]').click();
+    await expect(settingsPage.locator('.shortcut-row')).toHaveCount(5);
+    await expect(settingsPage.locator('#save-shortcuts')).toBeDisabled();
+    const shortcutCandidates = await settingsPage.evaluate(async () => {
+      const available = [];
+      for (let number = 6; number <= 24 && available.length < 2; number++) {
+        const accelerator = `Ctrl+Alt+Shift+F${number}`;
+        const result = await window.shiguang.checkShortcuts({ clockIn: accelerator });
+        if (result.ok && result.value.clockIn.registered) available.push(accelerator);
+      }
+      return available;
+    });
+    assert.equal(shortcutCandidates.length, 2, 'Two unused shortcut combinations are available for this isolated test');
+    const [savedShortcut, spareShortcut] = shortcutCandidates;
+    async function recordShortcut(action, accelerator) {
+      await settingsPage.locator(`[data-shortcut="${action}"]`).click();
+      await expect(settingsPage.locator(`[data-shortcut="${action}"]`)).toHaveText('请按组合键…');
+      await expect(settingsPage.locator('#save-shortcuts')).toBeDisabled();
+      await settingsPage.keyboard.press(accelerator.replace('Ctrl', 'Control'));
+      await expect(settingsPage.locator(`[data-shortcut="${action}"]`)).toHaveText(accelerator);
+      await expect(settingsPage.locator('#shortcuts-form')).toHaveAttribute('aria-busy', 'false');
+    }
+    await recordShortcut('clockIn', savedShortcut);
+    await expect(settingsPage.locator('#shortcut-status-clockIn')).toHaveAttribute('data-status', 'available');
+    await recordShortcut('pause', savedShortcut);
+    await expect(settingsPage.locator('#shortcut-status-clockIn')).toHaveAttribute('data-status', 'error');
+    await expect(settingsPage.locator('#shortcut-status-pause')).toHaveAttribute('data-status', 'error');
+    await expect(settingsPage.locator('#save-shortcuts')).toBeDisabled();
+    await settingsPage.screenshot({ path: path.join(output, 'settings-shortcuts-conflict.png'), omitBackground: true });
+    await settingsPage.locator('[data-clear-shortcut="pause"]').click();
+    await expect(settingsPage.locator('#save-shortcuts')).toBeEnabled();
+    await settingsPage.locator('#save-shortcuts').click();
+    await expect(settingsPage.locator('#shortcut-feedback')).toHaveText('快捷键已保存');
+    assert.equal((await settingsPage.evaluate(() => window.shiguang.getSettings())).shortcuts.clockIn, savedShortcut);
+
+    await settingsPage.locator('[data-shortcut="resume"]').click();
+    await expect(settingsPage.locator('[data-shortcut="resume"]')).toHaveText('请按组合键…');
+    const heldKeys = savedShortcut.replace('Ctrl', 'Control').split('+');
+    for (const key of heldKeys) await settingsPage.keyboard.down(key);
+    await expect(settingsPage.locator('#shortcut-status-resume')).toHaveText('松开按键后完成录入');
+    assert.equal((await settingsPage.evaluate(() => window.shiguang.getSettings())).shortcutStatus.clockIn.registered, false, 'Bindings remain suspended while the recorded combination is held');
+    await settingsPage.keyboard.up(heldKeys.at(-1));
+    assert.equal((await settingsPage.evaluate(() => window.shiguang.getSettings())).shortcutStatus.clockIn.registered, false, 'Modifiers must also be released before restoring callbacks');
+    for (const key of heldKeys.slice(0, -1).reverse()) await settingsPage.keyboard.up(key);
+    await expect(settingsPage.locator('#shortcut-status-resume')).toHaveAttribute('data-status', 'error');
+    await settingsPage.locator('[data-clear-shortcut="resume"]').click();
+    await expect(settingsPage.locator('#shortcut-status-clockIn')).toHaveAttribute('data-status', 'active');
+
+    await settingsPage.locator('[data-shortcut="resume"]').click();
+    await expect(settingsPage.locator('[data-shortcut="resume"]')).toHaveText('请按组合键…');
+    await settingsPage.keyboard.press('a');
+    await expect(settingsPage.locator('#shortcut-status-resume')).toHaveAttribute('data-status', 'error');
+    await settingsPage.keyboard.press('Escape');
+    await expect(settingsPage.locator('#panel-shortcuts')).toBeVisible();
+    await expect(settingsPage.locator('[data-shortcut="resume"]')).toHaveText('未设置');
+    await expect.poll(async () => (await settingsPage.evaluate(() => window.shiguang.getSettings())).shortcutStatus.clockIn.registered).toBe(true);
+
+    // A rapid switch during the suspension request must still restore active bindings.
+    await settingsPage.evaluate(() => {
+      document.querySelector('[data-shortcut="resume"]').click();
+      document.querySelector('[data-shortcut="clockOut"]').click();
+      document.querySelector('[data-tab="general"]').click();
+      document.querySelector('[data-tab="shortcuts"]').click();
+    });
+    await expect(settingsPage.locator('.shortcut-capture.recording')).toHaveCount(0);
+    await expect(settingsPage.locator('#shortcuts-form')).toHaveAttribute('aria-busy', 'false');
+    await expect.poll(async () => (await settingsPage.evaluate(() => window.shiguang.getSettings())).shortcutStatus.clockIn.registered).toBe(true);
+    await settingsPage.locator('[data-shortcut="resume"]').click();
+    await expect(settingsPage.locator('[data-shortcut="resume"]')).toHaveText('请按组合键…');
+    await settingsPage.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(settingsPage.locator('.shortcut-capture.recording')).toHaveCount(0);
+    await expect.poll(async () => (await settingsPage.evaluate(() => window.shiguang.getSettings())).shortcutStatus.clockIn.registered).toBe(true);
+    await recordShortcut('pause', spareShortcut);
+    await settingsPage.locator('#save-shortcuts').click();
+    await expect(settingsPage.locator('#shortcut-feedback')).toHaveText('快捷键已保存');
+    await settingsPage.locator('[data-clear-shortcut="pause"]').click();
+    await expect(settingsPage.locator('#save-shortcuts')).toBeEnabled();
+    await settingsPage.locator('#save-shortcuts').click();
+    await expect(settingsPage.locator('#shortcut-feedback')).toHaveText('快捷键已保存');
+    assert.equal((await settingsPage.evaluate(() => window.shiguang.getSettings())).shortcuts.pause, '');
+    await recordShortcut('pause', savedShortcut);
+    await settingsPage.locator('[data-tab="general"]').click();
     await expect(settingsPage.locator('#launch-at-login')).toBeChecked();
     await settingsPage.locator('#launch-at-login').uncheck();
     await expect.poll(async () => (await settingsPage.evaluate(() => window.shiguang.getSettings())).launchAtLogin).toBe(false);
@@ -235,6 +368,13 @@ async function chooseOrb(orb, choice, screenshot) {
     await calendar.waitForTimeout(300);
     await calendar.screenshot({ path: path.join(output, 'calendar-choices-english.png'), omitBackground: true });
     await calendar.locator('#work-choices [data-choice="primary"] strong').click();
+    await calendar.locator(`[data-date="${today}"]`).click();
+    await expect(calendar.locator('#day-title')).toHaveText('Daily records');
+    await expect(calendar.locator('#day-events [data-type="clock-in"] .event-body strong').first()).toHaveText('Clock in');
+    await expect(calendar.locator('#day-events [data-type="adjust"] .event-body strong').first()).toHaveText('Manual adjustment');
+    await expect(calendar.locator('#day-dialog')).toHaveAttribute('aria-busy', 'false');
+    assert.doesNotMatch(await calendar.locator('#day-dialog').innerText(), /[\u3400-\u9fff]/, 'All daily detail content is translated');
+    await calendar.locator('#close-day').click();
     await settingsPage.locator('#week-start').selectOption('0');
     await expect(calendar.locator('.weekday').first()).toHaveText('Sun');
     const sundayKeys = await calendar.locator('.dates-row').first().locator('.day').evaluateAll(els => els.map(el => el.dataset.date));
@@ -245,6 +385,21 @@ async function chooseOrb(orb, choice, screenshot) {
     await assertNoOverflow(calendar);
     await calendar.screenshot({ path: path.join(output, 'calendar-english.png'), omitBackground: true });
     await settingsPage.screenshot({ path: path.join(output, 'settings-english.png'), omitBackground: true });
+    await settingsPage.locator('[data-tab="shortcuts"]').click();
+    await expect(settingsPage.locator('#shortcuts-heading')).toHaveText('Shortcuts');
+    await expect(settingsPage.locator('#save-shortcuts')).toHaveText('Save shortcuts');
+    await expect(settingsPage.locator('#shortcut-status-pause')).toHaveAttribute('data-status', 'error');
+    await expect(settingsPage.locator('#shortcut-status-pause')).not.toContainText(/[\u3400-\u9fff]/);
+    assert.doesNotMatch(await settingsPage.locator('#panel-shortcuts').innerText(), /[\u3400-\u9fff]/, 'All shortcut controls and status messages are translated');
+    await settingsPage.locator('[data-clear-shortcut="pause"]').click();
+    await expect(settingsPage.locator('#shortcut-status-clockIn')).toHaveAttribute('data-status', 'active');
+    for (const width of [850, 760]) {
+      await app.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().includes('/settings.html')).setSize(width, 720), width);
+      assert.deepEqual(await settingsPage.evaluate(() => [...document.querySelectorAll('.shortcut-row, .shortcut-capture, .shortcut-actions, .settings-content')].filter(element => element.scrollWidth > element.clientWidth + 1).map(element => element.className)), []);
+    }
+    await settingsPage.screenshot({ path: path.join(output, 'settings-shortcuts-english.png'), omitBackground: true });
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.webContents.getURL().includes('/settings.html')).setSize(850, 720));
+    await settingsPage.locator('[data-tab="general"]').click();
     for (const start of ['2', '3', '4', '5', '6', '1']) {
       await settingsPage.locator('#week-start').selectOption(start);
       await expect.poll(async () => new Date(`${await calendar.locator('.day').first().getAttribute('data-date')}T12:00:00`).getDay()).toBe(Number(start));
@@ -283,6 +438,10 @@ async function chooseOrb(orb, choice, screenshot) {
     const exported = JSON.parse(fs.readFileSync(exportPath, 'utf8'));
     assert.equal(exported.days[emptyDate], 1.75 * HOUR);
     assert.equal(exported.activeSince, null);
+    assert.equal(exported.mode, 'idle');
+    assert.equal(exported.events.at(-1).reason, 'export');
+    assert.ok(new WorkClock(exported).getDayDetails(today, Date.now() + HOUR).intervals.every(interval => !interval.ongoing));
+    assert.equal((await orb.evaluate(() => window.shiguang.getState())).mode, 'working', 'Export must preserve the live session');
     await settingsPage.screenshot({ path: path.join(output, 'settings-advanced.png'), omitBackground: true });
     await settingsPage.locator('#close-settings').click();
 
@@ -342,6 +501,9 @@ async function chooseOrb(orb, choice, screenshot) {
     assert.equal(restored.settings.theme, 'slate');
     assert.equal(restored.target, 6.5 * HOUR);
     const restoredSettings = await reopened.evaluate(() => window.shiguang.getSettings());
+    assert.equal(restoredSettings.shortcuts.clockIn, savedShortcut);
+    assert.equal(restoredSettings.shortcuts.pause, '');
+    assert.equal(restoredSettings.shortcutStatus.clockIn.registered, true);
     assert.equal(restoredSettings.dataDirectory, movedDirectory);
     assert.equal(restoredSettings.launchAtLogin, false);
     const restoredPosition = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(win => win.getTitle().includes('工作球')).getPosition());
@@ -385,7 +547,7 @@ async function chooseOrb(orb, choice, screenshot) {
     assert.equal(afterDock.mode, 'paused');
     assert.equal(afterDock.days[today], beforeDock.days[today]);
     assert.deepEqual(errors, []);
-    console.log('PASS: in-place split orb, all pause/resume/clock-out paths, cancellation, daily limit validation, break persistence, both screen edges, mini orb and gaze, bilingual UI, all week starts, edits, data migration, and existing orb/calendar behavior; no renderer errors.');
+    console.log('PASS: in-place split orb, all pause/resume/clock-out paths, exact daily timeline, rapid date switching, empty/future details, shortcut recording/duplicates/cancellation/clearing/persistence, bilingual shortcut layout, daily limit validation, break persistence, both screen edges, mini orb and gaze, bilingual UI, all week starts, edits, data migration, and existing orb/calendar behavior; no renderer errors.');
   } finally {
     if (app) await app.close();
     const resolved = path.resolve(dataDir);

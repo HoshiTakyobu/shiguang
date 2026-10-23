@@ -10,6 +10,7 @@ const englishMonths = ['January', 'February', 'March', 'April', 'May', 'June', '
 const $ = (selector) => document.querySelector(selector);
 const circumference = 2 * Math.PI * 21;
 let editSaving = false;
+let detailDate, detailRequest, detailGeneration = 0;
 const workChoices = createSplitChoices($('#work-choices'), { choose: workAction, cancel: () => $('#work-dialog').close() });
 
 function hours(ms) { return (ms / 3600000).toFixed(1).replace(/\.0$/, ''); }
@@ -59,7 +60,7 @@ function buildCalendar() {
       day.className = `day${date.getMonth() !== shownMonth ? ' other-month' : ''}${[0, 6].includes(date.getDay()) ? ' weekend' : ''}`;
       day.dataset.date = key;
       day.innerHTML = `<svg viewBox="0 0 52 52" aria-hidden="true"><circle class="ring-progress" cx="26" cy="26" r="21" stroke-dasharray="0 ${circumference}"/></svg><span class="date-number">${date.getDate()}</span>`;
-      day.addEventListener('click', () => openEditor(key));
+      day.addEventListener('click', () => openDay(key));
       dayElements.set(key, { el: day, ring: day.querySelector('.ring-progress') });
       cell.append(day);
       row.append(cell);
@@ -87,7 +88,7 @@ function render() {
   $('#live-dot').classList.toggle('paused', state.mode === 'paused');
   $('#toggle-work').textContent = t(state.mode === 'idle' ? '签到' : '选择操作');
   $('#target-description').textContent = t(' · 满 {target}', { target: targetLabel(state.settings.targetMinutes, state.settings.language) });
-  $('.calendar-note').textContent = t('{day}开始 · 点击日期可补录', { day: weekdays(true)[state.settings.weekStart] });
+  $('.calendar-note').textContent = t('{day}开始 · 点击日期看记录', { day: weekdays(true)[state.settings.weekStart] });
   $('#work-dialog-title').textContent = t(state.mode === 'paused' ? '准备回来啦？' : '休息一下？');
   workChoices.render(state);
   if (state.mode === 'idle') $('#work-dialog').close();
@@ -107,7 +108,7 @@ function render() {
     el.classList.toggle('is-future', key > state.today);
     el.classList.toggle('complete', progress === 1);
     el.setAttribute('aria-current', key === state.today ? 'date' : 'false');
-    const title = `${key} · ${formatTime(ms)}${progress === 1 ? t(' · 已达到每日目标') : ''}${t(' · 点击补录')}`;
+    const title = `${key} · ${formatTime(ms)}${progress === 1 ? t(' · 已达到每日目标') : ''}${t(' · 查看每日记录')}`;
     el.title = title;
     el.setAttribute('aria-label', title);
   }
@@ -119,7 +120,93 @@ function render() {
     el.setAttribute('aria-label', t('本周总工时 {time}', { time: formatTime(total) }));
   }
   if ($('#edit-dialog').open) updateEditorPreview();
+  if ($('#day-dialog').open) refreshDay();
 }
+
+const eventNames = { 'clock-in': '上班', pause: '休息', resume: '继续工作', 'clock-out': '下班', adjust: '工时调整', 'recording-started': '开始记录明细' };
+const reasonNames = { shutdown: '关机 / 重启 / 注销时自动下班', quit: '退出程序时自动下班', interrupted: '异常中断，按最后保存时间下班', legacy: '旧版仅保留总时长，此处开始记录明细', export: '导出备份时结束记录', shortcut: '快捷键操作' };
+function node(tag, className, text) {
+  const element = document.createElement(tag);
+  element.className = className;
+  if (text !== undefined) element.textContent = text;
+  return element;
+}
+function timeAt(at, date) {
+  if (at === new Date(`${date}T00:00:00`).getTime()) return '00:00:00';
+  if (dateKey(new Date(at)) > date) return '24:00:00';
+  return new Intl.DateTimeFormat(state.settings.language, { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(at));
+}
+function closeDay() { detailGeneration++; $('#day-dialog').close(); }
+async function openDay(date) {
+  detailDate = date;
+  detailGeneration++;
+  $('#day-date').textContent = date;
+  $('#day-total').textContent = formatTime(state.days[date] || 0);
+  $('#day-events').replaceChildren(); $('#day-intervals').replaceChildren();
+  $('#day-legacy').hidden = true; $('#day-adjusted').hidden = true; $('#day-empty').hidden = true; $('#day-error').hidden = true;
+  $('#day-loading').hidden = false;
+  $('#day-dialog').setAttribute('aria-busy', 'true');
+  $('#edit-day').disabled = date > state.today;
+  $('#day-dialog').showModal();
+  await refreshDay();
+}
+async function refreshDay() {
+  // A previous date may still be loading after the dialog has been reopened.
+  // Only coalesce requests for the same opening, and never show a stale result.
+  if (detailRequest?.generation === detailGeneration) return;
+  const generation = detailGeneration, date = detailDate;
+  const request = { generation };
+  detailRequest = request;
+  try {
+    const result = await api.getDayDetails(date);
+    if (generation !== detailGeneration || !$('#day-dialog').open) return;
+    if (!result.ok) throw new Error(result.error);
+    const detail = result.value;
+    $('#day-error').hidden = true;
+    $('#day-total').textContent = formatTime(detail.total);
+    const legacy = detail.legacyMilliseconds > 0 || detail.events.some(event => event.reason === 'legacy');
+    $('#day-legacy').hidden = !legacy;
+    $('#day-legacy').textContent = t('旧版记录或手动补录只保留总时长；未记录的历史节点无法还原。');
+    $('#day-adjusted').hidden = !detail.events.some(event => event.type === 'adjust');
+    $('#edit-day').disabled = date > state.today;
+    $('#day-empty').hidden = detail.events.length > 0;
+    const intervals = detail.intervals.map(interval => {
+      const row = node('div', `interval-row ${interval.kind}`);
+      const label = node('div', 'interval-label');
+      label.append(node('strong', '', t(interval.kind === 'working' ? '在岗' : '休息')),
+        node('span', '', `${timeAt(interval.start, date)} — ${interval.ongoing ? t('现在') : timeAt(interval.end, date)}`));
+      row.append(label, node('span', 'interval-duration', formatTime(interval.end - interval.start)));
+      if (interval.carried) label.append(node('small', '', t('从前一天延续')));
+      return row;
+    });
+    $('#day-intervals').replaceChildren(...intervals);
+    if (!intervals.length) $('#day-intervals').append(node('p', 'hint', t('这一天没有已记录的在岗或休息时段。')));
+    $('#day-events').replaceChildren(...detail.events.map(event => {
+      const row = node('li', `timeline-event ${event.type}`);
+      row.dataset.type = event.type;
+      const stamp = node('time', '', event.type === 'adjust' && dateKey(new Date(event.at)) !== date
+        ? `${dateKey(new Date(event.at))} ${timeAt(event.at, dateKey(new Date(event.at)))}` : timeAt(event.at, date));
+      stamp.dateTime = new Date(event.at).toISOString();
+      const body = node('div', 'event-body');
+      body.append(node('strong', '', t(eventNames[event.type] || event.type)));
+      if (reasonNames[event.reason]) body.append(node('span', '', t(reasonNames[event.reason])));
+      if (event.type === 'adjust') body.append(node('span', '', `${t(event.mode === 'add' ? '补充时长' : '修正总时长')} · ${formatTime(event.before)} → ${formatTime(event.after)}`));
+      row.append(stamp, body);
+      return row;
+    }));
+  } catch (error) {
+    if (generation === detailGeneration && $('#day-dialog').open) { $('#day-error').textContent = error.message; $('#day-error').hidden = false; }
+  } finally {
+    if (detailRequest === request) detailRequest = null;
+    if (generation === detailGeneration) {
+      $('#day-loading').hidden = true;
+      $('#day-dialog').setAttribute('aria-busy', 'false');
+    }
+  }
+}
+for (const id of ['dismiss-day', 'close-day']) $(`#${id}`).addEventListener('click', closeDay);
+$('#day-dialog').addEventListener('close', () => { if (!$('#day-dialog').open) detailGeneration++; });
+$('#edit-day').addEventListener('click', () => { const date = detailDate; closeDay(); openEditor(date); });
 
 function openEditor(date) {
   $('#edit-form').reset();
@@ -207,7 +294,7 @@ async function workAction(mode) {
 $('#close').addEventListener('click', () => api.closeCalendar());
 $('#minimize').addEventListener('click', () => api.minimizeCalendar());
 document.addEventListener('keydown', (event) => {
-  if ($('#edit-dialog').open || $('#work-dialog').open) return;
+  if ($('#edit-dialog').open || $('#work-dialog').open || $('#day-dialog').open) return;
   if (event.key === 'Escape') api.closeCalendar();
   if (event.key === 'ArrowLeft') { event.preventDefault(); changeMonth(-1); }
   if (event.key === 'ArrowRight') { event.preventDefault(); changeMonth(1); }

@@ -19,6 +19,8 @@ jobs:
       - run: npm test
       - run: npm run test:startup
       - run: npm run test:system
+      - run: npm run test:shutdown
+      - run: npm run test:shortcuts
       - run: npm run test:ui
       - run: npm run check:docs
       - uses: actions/upload-artifact@v4

@@ -59,4 +59,22 @@ h2 { font-size: 16px; font-weight: 500; margin: 0; line-height: 1.7; }
 .folder-actions { display: flex; gap: 9px; margin-top: 15px; }
 #startup-warning { margin-top: 14px; }
 #settings-error { margin-top: 12px; }
+.shortcut-card { padding-bottom: 18px; }
+.shortcut-list { margin-top: 6px; }
+.shortcut-row { display: grid; grid-template-columns: minmax(115px, 1fr) minmax(145px, 1.25fr) auto; column-gap: 11px; align-items: center; padding: 13px 0 9px; }
+.shortcut-row + .shortcut-row { border-top: 1px solid var(--line); }
+.shortcut-name { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.shortcut-capture { min-width: 0; min-height: 39px; font-family: 'Noto Sans SC', sans-serif; font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
+.shortcut-capture.recording { border-color: var(--accent); background: var(--soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.shortcut-capture[aria-invalid="true"] { border-color: #bb6651; }
+.shortcut-clear { padding: 7px 10px; font-size: 13px; }
+.shortcut-status { grid-column: 2 / 4; min-height: 18px; margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.shortcut-status[data-status="error"] { color: #a4432c; }
+.shortcut-status[data-status="active"], .shortcut-status[data-status="available"] { color: var(--accent); }
+.shortcut-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-top: 18px; }
+.shortcut-action-buttons { display: flex; gap: 8px; margin-left: auto; }
+#shortcut-feedback { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+#shortcut-error { margin: 14px 0 0; }
+html[lang="en"] .shortcut-row { grid-template-columns: minmax(110px, 1fr) minmax(145px, 1.25fr) auto; }
+@media (max-width: 750px) { .shortcut-row, html[lang="en"] .shortcut-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; } .shortcut-name { grid-column: 1 / 3; } .shortcut-status { grid-column: 1 / 3; margin-top: 0; } }
 @media (max-width: 790px) { .sidebar { width: 136px; padding-left: 10px; padding-right: 10px; } .settings-content { padding: 24px 21px; } .theme-card small { font-size: 13px; white-space: normal; } }

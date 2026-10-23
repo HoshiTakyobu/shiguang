@@ -1,9 +1,11 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, shell, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, shell, powerMonitor, globalShortcut } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { WorkClock } = require('./clock.cjs');
 const { FileStore } = require('./store.cjs');
+const { saveForExit } = require('./lifecycle.cjs');
+const { ShortcutManager } = require('./shortcuts.cjs');
 const { SettingsStore, patchSettings, moveDataDirectory } = require('./settings.cjs');
 const { StartupController, APP_ID } = require('./startup.cjs');
 const { OrbWindow } = require('./orb-window.cjs');
@@ -19,6 +21,8 @@ let orbWindow, calendarWindow, settingsWindow, tray, clock, store, settingsStore
 let startupError = null;
 let startup;
 let orbLayout, actionsOpen = false, instanceLease;
+let shutdownRequested = false;
+let shortcuts;
 const tr = (text, values) => translate(text, settings?.language, values);
 const errorText = text => translateError(text, settings?.language);
 let doubleClickMs = 550;
@@ -49,7 +53,20 @@ function configureStartup(enabled, options) {
 
 function settingsSnapshot() {
   const actual = !testMode && app.isPackaged ? startup.status() : null;
-  return { ...settings, appVersion: app.getVersion(), author: 'Hoshi Takyobu', applicationPath: startupExecutable(), startupError: startupError ? errorText(startupError) : null, startupEnabled: actual?.enabled ?? settings.launchAtLogin };
+  return { ...settings, shortcutStatus: shortcutStatus(), appVersion: app.getVersion(), author: 'Hoshi Takyobu', applicationPath: startupExecutable(), startupError: startupError ? errorText(startupError) : null, startupEnabled: actual?.enabled ?? settings.launchAtLogin };
+}
+
+function shortcutStatus(status = shortcuts?.getStatus() || {}) {
+  const messages = {
+    invalid: '组合键无效，请使用 Ctrl 或 Alt 搭配按键，或使用功能键。',
+    duplicate: '此快捷键与其他操作重复。',
+    reserved: '此组合键由系统保留，请选择其他快捷键。',
+    unavailable: '快捷键被其他程序占用或系统不允许注册，请更换组合键。',
+    suspended: '录入期间快捷键已暂停。'
+  };
+  return Object.fromEntries(Object.entries(status).map(([action, value]) => [action, {
+    ...value, error: value.error ? tr(messages[value.error] || value.error) : null
+  }]));
 }
 
 function saveSettings(patch) {
@@ -57,7 +74,9 @@ function saveSettings(patch) {
   const next = patchSettings(settings, patch);
   try {
     if ('launchAtLogin' in patch) configureStartup(next.launchAtLogin);
-    settingsStore.save(next);
+    if ('shortcuts' in patch) {
+      shortcuts.replace(next.shortcuts, bindings => settingsStore.save({ ...next, shortcuts: bindings }));
+    } else settingsStore.save(next);
     settings = next;
     if ('launchAtLogin' in patch) startupError = null;
   } catch (error) {
@@ -94,18 +113,49 @@ function broadcast() {
 }
 
 function toggle() {
-  if (clock.snapshot().mode === 'idle') return transition('working');
+  if (clock.snapshot().mode === 'idle') return guardedTransition('working');
   openActions();
   return snapshot();
 }
 
-function transition(mode) {
-  clock.setMode(mode);
+function guardedTransition(mode, reason = 'manual') {
+  try { return transition(mode, reason); }
+  catch (error) {
+    // Tray and single-click entry points have no action dialog; broadcast()
+    // already exposes the save warning while the original state remains intact.
+    console.error('Could not save work status:', error);
+    return snapshot();
+  }
+}
+
+function transition(mode, reason = 'manual') {
+  if (shutdownRequested || quitting) return snapshot();
+  const at = Date.now();
+  const next = new WorkClock(clock.state, clock.now);
+  next.setMode(mode, at, reason);
+  try { store.save(next.checkpoint(at)); }
+  catch (error) { storageError = '工时暂未保存，请检查磁盘空间或写入权限。'; broadcast(); throw error; }
+  clock = next;
+  storageError = null;
+  lastSave = performance.now();
   actionsOpen = false;
-  persist();
   updateTray();
   broadcast();
   return snapshot();
+}
+
+function runShortcut(action) {
+  if (!clock || shutdownRequested || quitting) return;
+  const mode = clock.state.mode;
+  if (action === 'toggleOrb') {
+    actionsOpen = false;
+    if (orbWindow.isVisible()) { orbWindow.hide(); updateTray(); }
+    else showOrb();
+    broadcast();
+  } else if (action === 'clockIn' && mode === 'idle') guardedTransition('working', 'shortcut');
+  else if (action === 'pause' && mode === 'working') guardedTransition('paused', 'shortcut');
+  else if (action === 'resume' && mode === 'paused') guardedTransition('working', 'shortcut');
+  else if (action === 'clockOut' && mode !== 'idle') guardedTransition('idle', 'shortcut');
 }
 
 function openActions() {
@@ -144,7 +194,32 @@ function secureWindow(options) {
   });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event) => event.preventDefault());
+  if (process.platform === 'win32') {
+    win.on('query-session-end', () => finishSystemSession());
+    win.on('session-end', () => finishSystemSession());
+  }
   return win;
+}
+
+function finishSystemSession() {
+  if (quitting) return;
+  shutdownRequested = true;
+  actionsOpen = false;
+  try {
+    if (clock) clock = saveForExit(clock, store, { shutdown: true });
+    storageError = null;
+  } catch (error) {
+    // Windows may force termination. The next launch closes the last saved
+    // active checkpoint, so the offline gap can never become work time.
+    console.error('Shutdown save failed:', error);
+  }
+  quitting = true;
+  clearInterval(ticker);
+  shortcuts?.dispose();
+  savePosition();
+  tray?.destroy();
+  instanceLease?.release();
+  app.quit();
 }
 
 function createOrb() {
@@ -199,7 +274,7 @@ function openCalendar() {
 
 function openSettings(tab = 'general') {
   closeActions();
-  const selected = ['general', 'work', 'advanced'].includes(tab) ? tab : 'general';
+  const selected = ['general', 'work', 'shortcuts', 'advanced'].includes(tab) ? tab : 'general';
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send('settings:tab', selected);
     if (settingsWindow.isMinimized()) settingsWindow.restore();
@@ -215,7 +290,8 @@ function openSettings(tab = 'general') {
   });
   settingsWindow.loadFile(path.join(__dirname, 'renderer/settings.html'), { query: { tab: selected } });
   settingsWindow.once('ready-to-show', () => settingsWindow.show());
-  settingsWindow.on('closed', () => { settingsWindow = null; });
+  settingsWindow.on('blur', () => shortcuts?.resume());
+  settingsWindow.on('closed', () => { shortcuts?.resume(); settingsWindow = null; });
 }
 
 function showOrb() {
@@ -228,8 +304,8 @@ function showOrb() {
 function menuTemplate() {
   const mode = clock.snapshot().mode;
   return [
-    ...(mode === 'working' ? [{ label: tr('临时离开'), click: () => transition('paused') }] : [{ label: tr(mode === 'paused' ? '继续工作' : '签到'), click: () => transition('working') }]),
-    ...(mode !== 'idle' ? [{ label: tr('签退'), click: () => transition('idle') }] : []),
+    ...(mode === 'working' ? [{ label: tr('临时离开'), click: () => guardedTransition('paused') }] : [{ label: tr(mode === 'paused' ? '继续工作' : '签到'), click: () => guardedTransition('working') }]),
+    ...(mode !== 'idle' ? [{ label: tr('签退'), click: () => guardedTransition('idle') }] : []),
     { label: tr('打开工时日历'), click: openCalendar },
     { label: tr('设置'), click: () => openSettings() },
     { type: 'separator' },
@@ -258,9 +334,10 @@ function attachIPC() {
   const handleAction = (channel, allowed, action) => ipcMain.handle(channel, async (event, value) => {
     if (!allowed(event)) return { ok: false, error: tr('无效的窗口来源') };
     try { return { ok: true, value: await action(event, value) }; }
-    catch (error) { return { ok: false, error: errorText(error.message || '操作未完成，请重试。') }; }
+    catch (error) { return { ok: false, error: error.status ? tr('快捷键未保存，请处理冲突后重试。') : errorText(error.message || '操作未完成，请重试。'), ...(error.status ? { shortcutStatus: shortcutStatus(error.status) } : {}) }; }
   });
   handleAction('clock:set-mode', fromApp, (_event, mode) => transition(mode));
+  handleAction('clock:day-details', fromCalendar, (_event, date) => clock.getDayDetails(date));
   ipcMain.on('actions:close', event => { if (fromOrb(event)) closeActions(); });
   ipcMain.handle('orb:activate', event => {
     if (!fromOrb(event)) return null;
@@ -280,6 +357,13 @@ function attachIPC() {
   });
   ipcMain.handle('settings:get', (event) => fromApp(event) ? settingsSnapshot() : null);
   handleAction('settings:save', fromSettings, (_event, patch) => saveSettings(patch));
+  handleAction('shortcuts:check', fromSettings, (_event, bindings) => shortcutStatus(shortcuts.check(bindings)));
+  handleAction('shortcuts:capture', fromSettings, (_event, capture) => {
+    if (typeof capture !== 'boolean') throw new Error('无效的快捷键录入状态');
+    if (capture && settingsWindow.isFocused()) shortcuts.suspend();
+    else shortcuts.resume();
+    return shortcutStatus();
+  });
   ipcMain.handle('settings:open', (event, tab) => { if (fromApp(event)) openSettings(tab); });
   ipcMain.on('settings:close', (event) => { if (fromSettings(event)) settingsWindow.close(); });
   handleAction('settings:choose-directory', fromSettings, async () => {
@@ -302,7 +386,10 @@ function attachIPC() {
     if (result.canceled || !result.filePath) return null;
     const protectedFiles = [store.file, `${store.file}.bak`, settingsStore.file, `${settingsStore.file}.bak`, preferencesFile()].map(file => path.resolve(file).toLowerCase());
     if (protectedFiles.includes(path.resolve(result.filePath).toLowerCase())) throw new Error('请为导出备份选择其他文件名，避免覆盖正在使用的工时或设置文件。');
-    const exportState = { ...clock.checkpoint(), activeSince: null, mode: 'idle' };
+    const at = Date.now();
+    const exported = new WorkClock(clock.state, clock.now);
+    exported.setMode('idle', at, 'export');
+    const exportState = exported.checkpoint(at);
     fs.writeFileSync(result.filePath, JSON.stringify(exportState, null, 2), 'utf8');
     return result.filePath;
   });
@@ -338,6 +425,7 @@ if (!hasLock) {
       settingsStore.save(settings);
       store = new FileStore(path.join(settings.dataDirectory, 'worklog.json'));
       clock = new WorkClock(store.load(path.resolve(settings.dataDirectory).toLowerCase() !== path.resolve(app.getPath('userData')).toLowerCase()));
+      clock.recoverInterrupted();
       try { configureStartup(settings.launchAtLogin, { preserveDisabled: true }); } catch (error) { startupError = error.message; }
     } catch (error) {
       dialog.showErrorBox(tr('拾光 · 数据读取失败'), errorText(error.message));
@@ -351,6 +439,8 @@ if (!hasLock) {
     tray.on('click', showOrb);
     tray.on('double-click', openCalendar);
     updateTray();
+    shortcuts = new ShortcutManager(globalShortcut, runShortcut);
+    shortcuts.start(settings.shortcuts);
     ticker = setInterval(() => {
       const elapsed = performance.now();
       if (elapsed - lastSave >= 15000) persist();
@@ -363,6 +453,7 @@ if (!hasLock) {
       }
     }, 50);
     powerMonitor.on('suspend', persist);
+    powerMonitor.on('shutdown', finishSystemSession);
     powerMonitor.on('resume', () => { persist(); broadcast(); });
     screen.on('display-removed', () => orbLayout.ensureVisible());
     screen.on('display-metrics-changed', () => { if (!orbLayout.drag) orbLayout.ensureVisible(); });
@@ -371,16 +462,16 @@ if (!hasLock) {
   app.on('window-all-closed', () => { /* The tray owns the application lifetime. */ });
   app.on('before-quit', (event) => {
     if (quitting) return;
-    const previousMode = clock?.snapshot().mode;
-    if (previousMode === 'working') clock.setMode('idle');
-    if (clock && !persist() && !testMode) {
+    try { if (clock) clock = saveForExit(clock, store); }
+    catch (error) {
+      storageError = '工时暂未保存，请检查磁盘空间或写入权限。';
       event.preventDefault();
-      if (previousMode === 'working') clock.setMode('working');
       dialog.showErrorBox(tr('拾光 · 尚未保存'), `${errorText(storageError)}\n${tr('修复后可再次退出。记录位置：')}${store.file}`);
       return;
     }
     quitting = true;
     clearInterval(ticker);
+    shortcuts?.dispose();
     savePosition();
     tray?.destroy();
     instanceLease?.release();

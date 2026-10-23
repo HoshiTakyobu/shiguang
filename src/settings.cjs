@@ -1,8 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { DEFAULT_SHORTCUTS, normalizeShortcuts } = require('./shortcuts.cjs');
 
 const THEMES = ['spring', 'slate', 'sand'];
 function validateSettings(value) {
+  try { normalizeShortcuts(value?.shortcuts); } catch { return false; }
   return !!value && value.version === 1 && typeof value.launchAtLogin === 'boolean'
     && THEMES.includes(value.theme) && Number.isInteger(value.targetMinutes)
     && value.targetMinutes >= 1 && value.targetMinutes <= 1440
@@ -14,17 +16,17 @@ function validateSettings(value) {
 class SettingsStore {
   constructor(directory) {
     this.file = path.join(directory, 'settings.json');
-    this.defaults = { version: 1, launchAtLogin: true, theme: 'spring', targetMinutes: 480, dataDirectory: directory, language: 'zh-CN', weekStart: 1 };
+    this.defaults = { version: 1, launchAtLogin: true, theme: 'spring', targetMinutes: 480, dataDirectory: directory, language: 'zh-CN', weekStart: 1, shortcuts: { ...DEFAULT_SHORTCUTS } };
   }
 
   read(file) {
     const value = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (!validateSettings(value)) throw new Error('设置文件格式无效');
-    return { ...this.defaults, ...value };
+    return { ...this.defaults, ...value, shortcuts: normalizeShortcuts(value.shortcuts) };
   }
 
   load() {
-    if (!fs.existsSync(this.file) && !fs.existsSync(`${this.file}.bak`)) return { ...this.defaults };
+    if (!fs.existsSync(this.file) && !fs.existsSync(`${this.file}.bak`)) return { ...this.defaults, shortcuts: { ...DEFAULT_SHORTCUTS } };
     try { return this.read(this.file); } catch {
       try { return this.read(`${this.file}.bak`); } catch {
         throw new Error(`设置文件无法读取。为保留数据存储位置，请先恢复此文件：\n${this.file}`);
@@ -34,9 +36,10 @@ class SettingsStore {
 
   save(value) {
     if (!validateSettings(value)) throw new Error('设置值无效');
+    const canonical = { ...this.defaults, ...value, shortcuts: normalizeShortcuts(value.shortcuts) };
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temp = `${this.file}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(value, null, 2));
+    fs.writeFileSync(temp, JSON.stringify(canonical, null, 2));
     let valid = false;
     try { this.read(this.file); valid = true; } catch { /* Preserve a valid backup on recovery. */ }
     if (valid) fs.copyFileSync(this.file, `${this.file}.bak`);
@@ -45,8 +48,9 @@ class SettingsStore {
 }
 
 function patchSettings(current, patch) {
-  if (!patch || typeof patch !== 'object' || Object.keys(patch).some(key => !['launchAtLogin', 'theme', 'targetMinutes', 'language', 'weekStart'].includes(key))) throw new Error('不支持的设置项');
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch) || Object.keys(patch).some(key => !['launchAtLogin', 'theme', 'targetMinutes', 'language', 'weekStart', 'shortcuts'].includes(key))) throw new Error('不支持的设置项');
   const next = { ...current, ...patch };
+  next.shortcuts = normalizeShortcuts(next.shortcuts);
   if (!validateSettings(next)) throw new Error('请检查设置：圆环目标须为 1 分钟至 24 小时。');
   return next;
 }

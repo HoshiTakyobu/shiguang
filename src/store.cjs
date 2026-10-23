@@ -12,12 +12,17 @@ class FileStore {
   }
 
   load(required = false) {
+    this.recovered = false;
     if (!fs.existsSync(this.file) && !fs.existsSync(`${this.file}.bak`)) {
       if (required) throw new Error(`未找到已迁移的工时记录，请连接数据磁盘或恢复文件：\n${this.file}`);
       return undefined;
     }
     try { return this.read(this.file); } catch {
-      try { this.recovered = true; return this.read(`${this.file}.bak`); } catch {
+      try {
+        const value = this.read(`${this.file}.bak`);
+        this.recovered = true;
+        return value;
+      } catch {
         throw new Error(`工时记录无法读取，请保留此文件以便恢复：\n${this.file}`);
       }
     }
@@ -27,7 +32,11 @@ class FileStore {
     if (!validateState(state)) throw new Error('Refusing to save invalid data');
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temp = `${this.file}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(state, null, 2), 'utf8');
+    const descriptor = fs.openSync(temp, 'w');
+    try {
+      fs.writeFileSync(descriptor, JSON.stringify(state, null, 2), 'utf8');
+      fs.fsyncSync(descriptor);
+    } finally { fs.closeSync(descriptor); }
     if (fs.existsSync(this.file)) {
       let valid = false;
       try { this.read(this.file); valid = true; } catch { /* Preserve the last good backup. */ }

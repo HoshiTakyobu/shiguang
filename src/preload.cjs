@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('shiguang', {
   getState: () => ipcRenderer.invoke('clock:get'),
+  getDayDetails: date => ipcRenderer.invoke('clock:day-details', date),
+  checkShortcuts: bindings => ipcRenderer.invoke('shortcuts:check', bindings),
+  captureShortcuts: capture => ipcRenderer.invoke('shortcuts:capture', capture),
   getTranslations: () => ipcRenderer.invoke('translations:get'),
   toggle: () => ipcRenderer.invoke('clock:toggle'),
   setMode: mode => ipcRenderer.invoke('clock:set-mode', mode),

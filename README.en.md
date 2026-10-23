@@ -14,16 +14,24 @@ A playful, local-first desktop companion for tracking personal work hours on Win
 
 ![Shiguang calendar with demonstration data](docs/images/calendar-english.png)
 
+![Daily records showing work and break intervals and exact event times, in the Chinese interface](docs/images/day-details.png)
+
+<p align="center"><sub>Example: clock in at 09:00, break at 12:00, resume at 13:00, and clock out at 15:00 — 5 hours of work and a 1-hour break.</sub></p>
+
+![Global shortcut settings with duplicate-combination warnings, in the Chinese interface](docs/images/settings-shortcuts.png)
+
 ## Features
 
 - Click the blue orb to clock in. While working, click to split it diagonally into two smiling companions: coral **Take a break** at the upper right and blue **Clock out** at the lower left. While paused, choose green **I'm back** at the upper left or blue **Clock out** at the lower right. Breaks do not count toward work time.
 - Drag the orb to either screen edge to shrink it into a tiny peeking companion, with only one quarter showing and eyes following your cursor. Click or drag it out to restore it.
 - Double-click to open this month's calendar without changing the work status.
+- Click a date to see exact clock-in, break, resume and clock-out times, plus work and break intervals split at local midnight.
 - Watch today's cumulative `HH:MM:SS` update live, capped at `24:00:00` per day. Sessions crossing midnight are split by local date; weekly and monthly totals may exceed 24 hours.
 - Clockwise date rings start at 12 o'clock and grow greener toward your daily goal, eight hours by default. Dates with no work have no ring.
 - Choose any day as the start of your week. Weekly totals follow that choice, including dates across month boundaries. Monthly totals and completed days are shown separately.
-- Add missing time or correct a day's total, including while today's timer is active.
+- Choose **Add time** in a daily record or the calendar toolbar to add missing time or correct a day's total, including while today's timer is active. Adjustments preserve the original intervals and record the change in total.
 - Three themes, a configurable ring target, Windows login startup, data relocation and backup export.
+- Configure global shortcuts for clock in, take a break, resume, clock out, and show/hide the orb in **Settings → Shortcuts**. All are disabled until configured; saving checks for duplicate or unavailable key combinations.
 - Switch between English and Simplified Chinese in settings. Offline operation with bundled fonts; no account or cloud service.
 - One production instance per computer, even when launched from another folder.
 
@@ -33,6 +41,8 @@ A playful, local-first desktop companion for tracking personal work hours on Win
 </p>
 
 Click either half to choose. The center cross, Escape, or clicking another window dismisses the desktop choices without changing your status. The calendar uses the same split-orb controls.
+
+To configure a global shortcut, click its input, press a key combination, then save. Clear and save to disable an action. Shortcuts work while another application is focused. If a combination is already assigned or unavailable to Windows, saving fails and the previous bindings stay active. Shiguang cannot identify which other application holds an unavailable combination.
 
 ## Install
 
@@ -49,7 +59,11 @@ Current builds are unsigned. Windows may show an unknown-publisher or SmartScree
 
 ## Timing and data
 
-Working time includes lock and sleep time; paused time does not. A pause survives midnight and application restarts. Normal exit saves and clocks out an active session, while preserving pauses. After an abnormal interruption, the previous state resumes; if it was working, the interruption counts. Rings stop growing at the goal, while work time continues up to 24 hours per day, then counts on the next date. Corrections exceeding 24 hours are rejected; existing daily overflows are normalized to 24 hours without removing dates. Weekly and monthly sums remain uncapped. This is a personal time log with editable records.
+Working time includes lock and sleep time; paused time does not. Normal exit saves and clocks out an active session, while preserving pauses. Windows shutdown, restart and sign-out clock out both working and paused sessions. After an abnormal interruption, work ends at the last successfully saved checkpoint; time while the application was not running is not added. Active time is saved every 15 seconds and when work status changes.
+
+Version 1.5.0 adds timestamped events and daily intervals. Older daily totals are preserved, but past clock-in and clock-out times cannot be reconstructed. Manual corrections record the adjustment without inventing work intervals, so the daily total can differ from the sum of recorded intervals. Exported backups include the available details and restore in the off-work state.
+
+Rings stop growing at the goal, while work time continues up to 24 hours per day, then counts on the next date. Corrections exceeding 24 hours are rejected; existing daily overflows are normalized to 24 hours without removing dates. Weekly and monthly sums remain uncapped. This is a personal time log with editable records.
 
 Settings → Advanced lets you move the data folder or export a backup. Data does not sync between computers. See the [Chinese user guide](docs/USAGE.md) for migration and restore instructions.
 
@@ -62,6 +76,8 @@ npm ci
 npm start
 npm test
 npm run test:startup
+npm run test:shutdown
+npm run test:shortcuts
 npm run test:system
 npm run test:ui
 npm run check:docs
@@ -69,7 +85,7 @@ npm run dist
 npm run release:prepare
 ```
 
-The Windows startup regression uses isolated temporary registry entries and removes them afterward. UI tests use temporary data, not your work log. Pushing a matching `vX.Y.Z` tag runs the GitHub release workflow, builds both executables and attaches source and checksums. See [Publishing](docs/PUBLISHING.md) and [Contributing](CONTRIBUTING.md).
+The Windows startup regression uses isolated temporary registry entries and removes them afterward. The shutdown regression sends Windows session-end messages to an isolated test process without shutting down Windows. The shortcuts regression exercises native registration, conflicts and key activation. UI tests use temporary data. Pushing a matching `vX.Y.Z` tag runs the GitHub release workflow, builds both executables and attaches source and checksums. See [Publishing](docs/PUBLISHING.md) and [Contributing](CONTRIBUTING.md).
 
 ## Author and license
 

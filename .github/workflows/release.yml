@@ -24,6 +24,8 @@ jobs:
       - run: npm test
       - run: npm run test:startup
       - run: npm run test:system
+      - run: npm run test:shutdown
+      - run: npm run test:shortcuts
       - run: npm run test:ui
       - run: npm run dist
       - name: Test packaged application
@@ -31,6 +33,10 @@ jobs:
         run: |
           $env:SHIGUANG_EXECUTABLE = Join-Path $env:GITHUB_WORKSPACE 'release/win-unpacked/拾光.exe'
           npm run test:ui
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:shutdown
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:shortcuts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: npm run release:prepare
       - name: Publish complete release

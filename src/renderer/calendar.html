@@ -26,12 +26,23 @@
       <section class="calendar-card" aria-label="工时日历">
         <div class="calendar-toolbar"><div class="month-navigation"><button id="previous-month" class="arrow-button" aria-label="上个月" title="上个月"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button><button id="next-month" class="arrow-button" aria-label="下个月" title="下个月"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button><h2 id="month-title"></h2><span id="month-english" class="month-english"></span></div><div class="calendar-actions"><button id="go-today" class="button">本月</button><button id="add-time" class="button soft"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>补录工时</button></div></div>
         <div class="calendar-grid" role="grid" aria-labelledby="month-title" id="calendar-grid"></div>
-        <div class="calendar-bottom"><div class="legend"><span>工时的颜色</span><span>0</span><span class="legend-track"></span><span id="legend-target">8h</span></div><span class="calendar-note">周一开始 · 点击日期可补录</span></div>
+        <div class="calendar-bottom"><div class="legend"><span>工时的颜色</span><span>0</span><span class="legend-track"></span><span id="legend-target">8h</span></div><span class="calendar-note">周一开始 · 点击日期看记录</span></div>
       </section>
       <footer><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></svg>工时自动保存在这台电脑</span><span>周工时包含跨月日期</span></footer>
       <div id="storage-error" class="error-message" role="alert" hidden></div>
     </section>
   </main>
+  <dialog id="day-dialog" aria-labelledby="day-title" aria-describedby="day-date">
+    <div class="dialog-heading"><div><h3 id="day-title">每日记录</h3><p id="day-date"></p></div><button type="button" id="dismiss-day" class="dialog-close" aria-label="关闭每日记录"><svg class="icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    <div class="day-summary"><span>当日累计工时</span><strong id="day-total">00:00:00</strong></div>
+    <p id="day-loading" class="hint" role="status" hidden>正在读取记录…</p>
+    <p id="day-legacy" class="hint" hidden></p>
+    <p id="day-adjusted" class="hint" hidden>手动调整会改变累计工时，但不会改写实际在岗与休息时段。</p>
+    <section class="day-section"><h4>在岗与休息时段</h4><div id="day-intervals"></div></section>
+    <section class="day-section"><h4>关键节点</h4><ol id="day-events" class="timeline"></ol><p id="day-empty" class="hint" hidden>这一天还没有操作记录。</p></section>
+    <div id="day-error" class="error-message" role="alert" hidden></div>
+    <div class="dialog-actions"><button type="button" id="close-day" class="button">关闭</button><button type="button" id="edit-day" class="button primary">补录工时</button></div>
+  </dialog>
   <dialog id="edit-dialog" aria-labelledby="edit-title">
     <form id="edit-form">
       <div class="dialog-heading"><div><h3 id="edit-title">补录工时</h3><p>把漏记的认真，补回来。</p></div><button type="button" id="dismiss-edit" class="dialog-close" aria-label="关闭补录窗口"><svg class="icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>

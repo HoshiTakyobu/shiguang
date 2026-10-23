@@ -6,6 +6,7 @@ function translate(text, language = 'zh-CN', values = {}) {
 }
 function translateError(text, language = 'zh-CN') {
   if (language !== 'en') return text;
+  if (en[text]) return en[text];
   let result = text;
   for (const [original, translated] of Object.entries(en).sort((a, b) => b[0].length - a[0].length)) {
     if (original.length > 8) result = result.replaceAll(original, translated);
