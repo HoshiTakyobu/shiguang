@@ -51,6 +51,15 @@ async function assertNoOverflow(page) {
   return overflow;
 }
 
+async function closeWindow(page, selector) {
+  // Electron can destroy the target before Playwright receives the click reply.
+  // Accept that reply race only when this exact target has actually closed.
+  await page.locator(selector).click().catch(error => {
+    if (!page.isClosed() || !/Target page, context or browser has been closed/.test(error.message)) throw error;
+  });
+  await expect.poll(() => page.isClosed()).toBe(true);
+}
+
 async function chooseOrb(orb, choice, screenshot) {
   const windows = app.windows().length;
   await orb.locator('#orb').click({ force: true });
@@ -443,7 +452,7 @@ async function chooseOrb(orb, choice, screenshot) {
     assert.ok(new WorkClock(exported).getDayDetails(today, Date.now() + HOUR).intervals.every(interval => !interval.ongoing));
     assert.equal((await orb.evaluate(() => window.shiguang.getState())).mode, 'working', 'Export must preserve the live session');
     await settingsPage.screenshot({ path: path.join(output, 'settings-advanced.png'), omitBackground: true });
-    await settingsPage.locator('#close-settings').click();
+    await closeWindow(settingsPage, '#close-settings');
 
     await calendar.locator('#previous-month').click();
     const previous = new Date(year, month - 1, 1);
@@ -474,7 +483,7 @@ async function chooseOrb(orb, choice, screenshot) {
     const capRejected = await calendar.evaluate(today => window.shiguang.adjustDay({ date: today, mode: 'add', milliseconds: 1 }), today);
     assert.equal(capRejected.ok, false);
     await calendar.evaluate(({ today, ms }) => window.shiguang.adjustDay({ date: today, mode: 'replace', milliseconds: Math.floor(ms) }), { today, ms: beforeCap.days[today] });
-    await calendar.locator('#close').click();
+    await closeWindow(calendar, '#close');
     await expect.poll(async () => app.windows().length).toBe(1);
     await expect(orb.locator('#status')).toHaveText('上班中');
 
