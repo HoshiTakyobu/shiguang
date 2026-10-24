@@ -2,6 +2,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('shiguang', {
   getState: () => ipcRenderer.invoke('clock:get'),
+  getCelebration: () => ipcRenderer.invoke('celebration:get'),
+  getCloudSettings: () => ipcRenderer.invoke('cloud:get'),
+  saveCloudSettings: value => ipcRenderer.invoke('cloud:save', value),
+  retryCloudSync: () => ipcRenderer.invoke('cloud:retry'),
+  previewCelebration: () => ipcRenderer.invoke('celebration:preview'),
+  closeCelebration: () => ipcRenderer.send('celebration:close'),
   getDayDetails: date => ipcRenderer.invoke('clock:day-details', date),
   checkShortcuts: bindings => ipcRenderer.invoke('shortcuts:check', bindings),
   captureShortcuts: capture => ipcRenderer.invoke('shortcuts:capture', capture),

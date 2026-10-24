@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'">
   <title>拾光 · 设置</title>
-  <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="settings.css">
+  <link rel="stylesheet" href="base.css"><link rel="stylesheet" href="settings.css"><link rel="stylesheet" href="monthly.css">
 </head>
 <body>
   <main class="app-shell">
@@ -13,6 +13,8 @@
       <aside class="sidebar"><nav aria-label="设置分类">
         <button class="nav-item selected" data-tab="general" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>常规</button>
         <button class="nav-item" data-tab="work"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>工时</button>
+        <button class="nav-item" data-tab="monthly"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z"/></svg>月度目标</button>
+        <button class="nav-item" data-tab="cloud"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></svg>手机查看</button>
         <button class="nav-item" data-tab="shortcuts"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M7 14h.01M10 14h7"/></svg>快捷键</button>
         <button class="nav-item" data-tab="advanced"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></svg>高级</button>
       </nav><div class="version"><span id="version">拾光</span><span id="author">Hoshi Takyobu</span></div></aside>
@@ -26,6 +28,27 @@
             <button type="button" data-theme-choice="slate" class="theme-card"><span class="theme-preview slate"><i></i><i></i></span><strong>雾蓝石墨</strong><small>雾蓝 · 冷灰</small><svg class="theme-check icon" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></button>
             <button type="button" data-theme-choice="sand" class="theme-card"><span class="theme-preview sand"><i></i><i></i></span><strong>松石暖砂</strong><small>松石绿 · 暖砂色</small><svg class="theme-check icon" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></button>
           </div></div>
+        </section>
+        <section id="panel-cloud" class="settings-panel" aria-labelledby="cloud-heading" hidden>
+          <h1 id="cloud-heading">手机查看</h1><p class="page-description">不在同一个网络，也能看见此刻积攒的工时。</p>
+          <form id="cloud-form" class="setting-card"><div class="setting-row"><div><h2>同步到我的网页</h2><p>手机登录后，只读查看当前工时和月度进度。</p></div><label class="switch"><input id="cloud-enabled" type="checkbox" aria-label="启用手机查看"><span></span></label></div>
+            <label class="field cloud-field">查看网址<input id="cloud-endpoint" type="url" placeholder="https://shiguang.example.com" required autocomplete="url"></label>
+            <label class="field cloud-field">电脑连接密钥<input id="cloud-token" type="password" autocomplete="new-password" placeholder="粘贴服务器提供的连接密钥"></label>
+            <p class="hint">连接密钥用于电脑同步，与手机上的查看密码不同。已保存时留空即可沿用。</p>
+            <div class="monthly-form-actions"><button id="retry-cloud" type="button" class="button">立即同步</button><button id="save-cloud" type="submit" class="button primary">保存连接</button></div>
+          </form>
+          <div class="setting-card"><div class="setting-row"><h2>连接状态</h2><strong id="cloud-status">未开启</strong></div><p id="cloud-last-sync" class="hint"></p><p id="cloud-error" class="error-message" role="alert" hidden></p></div>
+          <div class="help-card"><h2>手机上能看到什么？</h2><p>今日累计、工作或暂停状态、当月工时、基础与 Bonus 目标。页面每秒更新显示，电脑约每 5 秒同步一次；断网或退出后，最多约 20 秒会显示离线。</p><p>本机明细与文件路径不会上传。关闭同步后，本机计时照常继续，网页保留最后同步的状态。</p></div>
+        </section>
+        <section id="panel-monthly" class="settings-panel" aria-labelledby="monthly-heading" hidden>
+          <h1 id="monthly-heading">月度目标</h1><p class="page-description">把一个月的努力，变成值得庆祝的里程碑。</p>
+          <form id="monthly-form">
+            <div class="setting-card monthly-goal-base"><h2>基础达标</h2><p class="card-description">达到门槛后，显示你设置的预计月收入。</p><div class="monthly-fields"><label class="field">基础门槛（小时）<input id="monthly-base-hours" type="number" min="1" max="744" step="0.01" required></label><label class="field">基础档月收入（CNY）<input id="monthly-base-amount" type="number" min="0" max="99999999" step="0.01" required></label></div></div>
+            <div class="setting-card monthly-goal-bonus"><div class="setting-row"><div><h2>Bonus 奖励档</h2><p>继续积攒工时，解锁更高的月收入。</p></div><label class="switch"><input id="monthly-bonus-enabled" type="checkbox" aria-label="启用 Bonus"><span></span></label></div><div id="monthly-bonus-fields"><div id="monthly-bonus-list"></div><p id="monthly-bonus-empty" class="hint" hidden>还没有 Bonus，点击下方按钮添加。</p><button id="add-monthly-bonus" type="button" class="button">添加 Bonus</button></div><p class="hint">各档金额都是当月预计总收入，不叠加。每个 Bonus 的工时门槛须高于前一档，月收入不能低于前一档。关闭 Bonus 会保留已设置的档位。</p></div>
+            <div class="setting-card"><div class="setting-row"><div><h2>达标庆祝</h2><p>达到基础档或 Bonus 档时，送你一场礼花。</p></div><label class="switch"><input id="monthly-celebrations" type="checkbox" aria-label="达标庆祝"><span></span></label></div><p class="hint">每月每档自动庆祝一次。预览不会修改工时，也不会消耗达标提醒。</p></div>
+            <div id="monthly-error" class="error-message" role="alert" hidden></div>
+            <div class="monthly-form-actions"><button id="preview-celebration" type="button" class="button">预览已保存的庆祝效果</button><button id="save-monthly" type="submit" class="button primary">保存月度目标</button></div>
+          </form>
         </section>
         <section id="panel-work" class="settings-panel" aria-labelledby="work-heading" hidden>
           <h1 id="work-heading">工时</h1><p class="page-description">一圈的长度，由你来定。</p>
@@ -54,7 +77,7 @@
           <div class="setting-card"><div class="setting-row"><h2>程序安装位置</h2><button class="button" id="show-application">查看位置</button></div><div id="application-path" class="data-directory application-path"></div></div>
           <div class="setting-card"><h2>数据存储位置</h2><p class="card-description">工时会自动保存到以下文件夹。</p><div id="data-directory" class="data-directory"></div><div class="folder-actions"><button class="button soft" id="change-directory">更改位置</button><button class="button" id="open-directory">打开文件夹</button></div><p class="hint">更改位置会复制现有记录并立即使用新位置。原文件保留；请选择没有拾光工时记录的文件夹。</p></div>
           <div class="setting-card"><div class="setting-row"><div><h2>导出工时备份</h2><p>把所有日期的记录另存为一个备份文件。</p></div><button class="button" id="export-data">导出备份</button></div></div>
-          <div class="help-card"><h2>记录规则</h2><p>按本机时间在零点分日。工作中锁屏和睡眠继续计时，临时离开不计时；关机、重启或注销会自动下班，异常中断按最后保存时间结束。</p></div>
+          <div class="help-card"><h2>记录规则</h2><p>按本机时间在零点分日。工作中锁屏和睡眠继续计时，临时离开不计时。退出时可选择继续计时，下次打开会补计退出期间的工时（包括关机时间）；程序运行中关机、重启或注销会自动下班，异常中断按最后保存时间结束。</p></div>
         </section>
         <div class="settings-feedback" id="settings-feedback" role="status">设置自动保存在本机</div>
         <div id="settings-error" class="error-message" role="alert" hidden></div>

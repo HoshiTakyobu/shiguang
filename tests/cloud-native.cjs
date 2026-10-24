@@ -1,0 +1,73 @@
+const { _electron: electron, chromium, expect } = require('@playwright/test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const net = require('node:net');
+const crypto = require('node:crypto');
+const { createServer, hashPassword } = require('../cloud/server.cjs');
+const { WorkClock, dayKey } = require('../src/clock.cjs');
+const { SettingsStore, patchSettings } = require('../src/settings.cjs');
+const root = path.resolve(__dirname, '..'), output = path.join(root, 'test-results');
+const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'shiguang-cloud-native-'));
+let app, browser, relay;
+(async () => {
+  try {
+    const reservation = net.createServer(); await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
+    const port = reservation.address().port; await new Promise(resolve => reservation.close(resolve));
+    const base = `http://127.0.0.1:${port}`, password = crypto.randomBytes(18).toString('base64url'), writeToken = crypto.randomBytes(32).toString('base64url');
+    relay = createServer({ storageFile: path.join(directory, 'relay/state.json'), publicUrl: base, passwordHash: await hashPassword(password), writeToken, sessionSecret: crypto.randomBytes(32).toString('hex') });
+    await new Promise(resolve => relay.listen(port, '127.0.0.1', resolve));
+    const pc = path.join(directory, 'pc'); fs.mkdirSync(pc);
+    const clock = new WorkClock(), today = dayKey(Date.now()); clock.adjustDay({ date: today, mode: 'replace', milliseconds: (4 * 3600 + 36 * 60 + 10) * 1000 });
+    for (let d = 1; d <= Math.min(8, new Date().getDate() - 1); d++) clock.adjustDay({ date: `${today.slice(0, 8)}${String(d).padStart(2, '0')}`, mode: 'replace', milliseconds: 20 * 3600000 });
+    fs.writeFileSync(path.join(pc, 'worklog.json'), JSON.stringify(clock.checkpoint()));
+    const prefs = new SettingsStore(pc); prefs.save(patchSettings(prefs.load(), { monthlyGoals: { celebrations: false,
+      bonuses: [{ id: 'bonus-1', hours: 170, amount: 1600 }, { id: 'bonus-2', hours: 200, amount: 2200 }, { id: 'bonus-3', hours: 240, amount: 3000 }] } }));
+    const env = { ...process.env, SHIGUANG_TEST: '1', SHIGUANG_DATA_DIR: pc }; delete env.ELECTRON_RUN_AS_NODE;
+    app = await electron.launch({ ...(process.env.SHIGUANG_EXECUTABLE ? { executablePath: process.env.SHIGUANG_EXECUTABLE } : { args: [root] }), env });
+    await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1 }); });
+    const orb = await app.firstWindow(); await expect(orb.locator('#status')).toHaveText('下班啦');
+    await orb.evaluate(() => window.shiguang.setMode('working'));
+    await orb.evaluate(() => window.shiguang.openSettings('cloud'));
+    await expect.poll(() => app.windows().some(p => p.url().includes('settings.html'))).toBe(true);
+    const settings = app.windows().find(p => p.url().includes('settings.html'));
+    await expect(settings.locator('#panel-cloud')).toBeVisible();
+    await settings.locator('#cloud-endpoint').fill(base); await settings.locator('#cloud-token').fill(writeToken); await settings.locator('#cloud-enabled').check();
+    await settings.locator('#save-cloud').click(); await expect(settings.locator('#cloud-status')).toHaveText('已连接', { timeout: 10000 });
+    assert.equal(fs.readFileSync(path.join(pc, 'cloud-settings.json'), 'utf8').includes(writeToken), false);
+    await settings.screenshot({ path: path.join(output, 'settings-phone-view.png') });
+    browser = await chromium.launch({ channel: 'msedge', headless: true });
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 2, hasTouch: true });
+    const page = await context.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
+    await page.goto(base); await expect(page.locator('#login')).toBeVisible();
+    await page.screenshot({ path: path.join(output, 'phone-login.png'), fullPage: true });
+    await page.locator('#password').fill(password); await page.locator('#login-button').click();
+    await expect(page.locator('#connection-status')).toHaveText('电脑在线'); await expect(page.locator('#work-mode')).toHaveText('上班中');
+    await expect(page.locator('#month-hours')).toHaveText((Object.values(clock.state.days).reduce((a, b) => a + b, 0) / 3600000).toFixed(1));
+    await expect(page.locator('#milestones > div')).toHaveCount(4);
+    await expect(page.locator('[data-tier="bonus-3"]')).toContainText('Bonus 3 奖励档');
+    await expect(page.locator('[data-tier="bonus-3"]')).toContainText('240 h');
+    await expect(page.locator('[data-tier="bonus-3"]')).toContainText('CNY 3000.0/月');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    const clockSeconds = async () => (await page.locator('#today-clock').textContent()).split(':').reduce((total, part) => total * 60 + Number(part), 0);
+    const before = await clockSeconds();
+    await expect.poll(clockSeconds, { timeout: 5000 }).toBeGreaterThan(before);
+    await page.screenshot({ path: path.join(output, 'phone-dashboard.png'), fullPage: true });
+    await orb.evaluate(() => window.shiguang.setMode('paused')); await expect(page.locator('#work-mode')).toHaveText('已暂停', { timeout: 10000 });
+    const paused = await page.locator('#today-clock').textContent(); await page.waitForTimeout(1500); assert.equal(await page.locator('#today-clock').textContent(), paused);
+    await settings.locator('#cloud-enabled').uncheck(); await settings.locator('#save-cloud').click();
+    await expect(page.locator('#connection-status')).toHaveText('电脑离线', { timeout: 10000 });
+    await expect(page.locator('#offline-note')).toBeVisible();
+    assert.equal((await orb.evaluate(() => window.shiguang.getState())).mode, 'paused');
+    await page.locator('#logout').click(); await expect(page.locator('#login')).toBeVisible();
+    assert.equal((await context.request.get(`${base}/api/state`)).status(), 401);
+    assert.deepEqual(errors, []);
+    console.log('PASS: encrypted Windows connection, desktop-to-server sync, phone login, live work timer, multiple Bonus tiers, monthly totals, pause, disconnect, logout and responsive page without browser errors.');
+  } finally {
+    if (browser) await browser.close(); if (app) await app.close();
+    if (relay) { relay.closeAllConnections(); await new Promise(resolve => relay.close(resolve)); }
+    if (path.dirname(directory) !== path.resolve(os.tmpdir()) || !path.basename(directory).startsWith('shiguang-cloud-native-')) throw new Error('Unexpected test path');
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });

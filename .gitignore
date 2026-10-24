@@ -13,3 +13,9 @@ Thumbs.db
 worklog.json*
 settings.json*
 preferences.json
+cloud/data/
+/data/
+private.env
+private.env.*
+cloud-settings.json
+monthly-notices.json*

@@ -42,6 +42,8 @@ function validateState(value) {
   if (value.activeSince !== null && !validTimestamp(value.activeSince)) return false;
   if (value.mode !== undefined && (!['idle', 'working', 'paused'].includes(value.mode) || (value.mode === 'working') !== (value.activeSince !== null))) return false;
   if (value.lastCheckpointAt !== undefined && !validTimestamp(value.lastCheckpointAt)) return false;
+  if (value.continueAfterExit !== undefined && (typeof value.continueAfterExit !== 'boolean'
+    || (value.continueAfterExit && (value.mode !== 'working' || value.activeSince === null)))) return false;
   if (value.events !== undefined && (!Array.isArray(value.events) || !value.events.every((event, index) =>
     event && EVENT_TYPES.includes(event.type) && validTimestamp(event.at) && typeof event.reason === 'string'
     && (index === 0 || event.at >= value.events[index - 1].at)
@@ -101,16 +103,24 @@ class WorkClock {
     // Keep the event sequence monotonic after a backwards system clock change.
     at = Math.max(at, this.state.activeSince || 0, this.state.events.at(-1)?.at || 0);
     this.checkpoint(at);
+    delete this.state.continueAfterExit;
     this.state.mode = mode;
     this.state.activeSince = mode === 'working' ? at : null;
     this.state.events.push({ type: mode === 'idle' ? 'clock-out' : mode === 'paused' ? 'pause' : previousMode === 'paused' ? 'resume' : 'clock-in', at, reason });
     return this.snapshot(at);
   }
 
-  recoverInterrupted() {
+  recoverInterrupted(at = this.now()) {
     if (this.state.mode !== 'working') return false;
+    if (this.state.continueAfterExit === true) {
+      // Explicit consent applies to this one exit only. Persist the consumed
+      // marker at startup before accepting new work, so a later crash is safe.
+      this.checkpoint(at);
+      delete this.state.continueAfterExit;
+      return true;
+    }
     // days already contains everything through activeSince. No offline time is added.
-    const at = this.state.activeSince;
+    at = this.state.activeSince;
     this.state.mode = 'idle';
     this.state.activeSince = null;
     this.state.events.push({ type: 'clock-out', at: Math.max(at, this.state.events.at(-1)?.at || 0), reason: 'interrupted' });

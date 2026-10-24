@@ -1,16 +1,18 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, shell, powerMonitor, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen, dialog, shell, powerMonitor, globalShortcut, safeStorage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { WorkClock } = require('./clock.cjs');
 const { FileStore } = require('./store.cjs');
-const { saveForExit } = require('./lifecycle.cjs');
+const { saveForExit, restoreAfterExit } = require('./lifecycle.cjs');
 const { ShortcutManager } = require('./shortcuts.cjs');
 const { SettingsStore, patchSettings, moveDataDirectory } = require('./settings.cjs');
 const { StartupController, APP_ID } = require('./startup.cjs');
-const { OrbWindow } = require('./orb-window.cjs');
+const { OrbWindow, MINI_SIZE } = require('./orb-window.cjs');
 const { acquireInstanceLock } = require('./instance-lock.cjs');
 const { translate, translateError } = require('./i18n.cjs');
+const { monthSummary, MonthlyNoticeStore } = require('./monthly.cjs');
+const { CloudSync } = require('./cloud-sync.cjs');
 
 const testMode = process.env.SHIGUANG_TEST === '1';
 app.setName('拾光');
@@ -22,7 +24,11 @@ let startupError = null;
 let startup;
 let orbLayout, actionsOpen = false, instanceLease;
 let shutdownRequested = false;
+let quitPromptOpen = false, quitDialogController;
 let shortcuts;
+let detachDisplayListeners = () => {};
+let celebrationWindow, celebrationData, monthlyNotices, nextCelebrationCheck = 0;
+let cloudSync;
 const tr = (text, values) => translate(text, settings?.language, values);
 const errorText = text => translateError(text, settings?.language);
 let doubleClickMs = 550;
@@ -39,7 +45,8 @@ function getDoubleClickTime() {
 }
 
 function snapshot() {
-  return { ...clock.snapshot(), actionsOpen, target: settings.targetMinutes * 60000, settings: { theme: settings.theme, targetMinutes: settings.targetMinutes, launchAtLogin: settings.launchAtLogin, language: settings.language, weekStart: settings.weekStart }, docked: orbLayout?.side || null, doubleClickMs, storageError: storageError ? errorText(storageError) : null };
+  const value = clock.snapshot();
+  return { ...value, monthly: monthSummary(value.days, value.now, settings.monthlyGoals), actionsOpen, target: settings.targetMinutes * 60000, settings: { theme: settings.theme, targetMinutes: settings.targetMinutes, launchAtLogin: settings.launchAtLogin, language: settings.language, weekStart: settings.weekStart, monthlyGoals: settings.monthlyGoals }, docked: orbLayout?.side || null, doubleClickMs, storageError: storageError ? errorText(storageError) : null };
 }
 
 function startupExecutable() {
@@ -85,9 +92,9 @@ function saveSettings(patch) {
   }
   broadcast();
   updateTray();
-  if (orbWindow) orbWindow.setTitle(tr('拾光 · 桌面工作球'));
-  if (calendarWindow) calendarWindow.setTitle(tr('拾光 · 工时日历'));
-  if (settingsWindow) settingsWindow.setTitle(tr('拾光 · 设置'));
+  if (orbWindow && !orbWindow.isDestroyed()) orbWindow.setTitle(tr('拾光 · 桌面工作球'));
+  if (calendarWindow && !calendarWindow.isDestroyed()) calendarWindow.setTitle(tr('拾光 · 工时日历'));
+  if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.setTitle(tr('拾光 · 设置'));
   return settingsSnapshot();
 }
 
@@ -129,13 +136,14 @@ function guardedTransition(mode, reason = 'manual') {
 }
 
 function transition(mode, reason = 'manual') {
-  if (shutdownRequested || quitting) return snapshot();
+  if (shutdownRequested || quitting || quitPromptOpen) return snapshot();
   const at = Date.now();
   const next = new WorkClock(clock.state, clock.now);
   next.setMode(mode, at, reason);
   try { store.save(next.checkpoint(at)); }
   catch (error) { storageError = '工时暂未保存，请检查磁盘空间或写入权限。'; broadcast(); throw error; }
   clock = next;
+  cloudSync?.pushSoon();
   storageError = null;
   lastSave = performance.now();
   actionsOpen = false;
@@ -145,7 +153,7 @@ function transition(mode, reason = 'manual') {
 }
 
 function runShortcut(action) {
-  if (!clock || shutdownRequested || quitting) return;
+  if (!clock || shutdownRequested || quitting || quitPromptOpen) return;
   const mode = clock.state.mode;
   if (action === 'toggleOrb') {
     actionsOpen = false;
@@ -204,6 +212,7 @@ function secureWindow(options) {
 function finishSystemSession() {
   if (quitting) return;
   shutdownRequested = true;
+  quitDialogController?.abort();
   actionsOpen = false;
   try {
     if (clock) clock = saveForExit(clock, store, { shutdown: true });
@@ -214,6 +223,8 @@ function finishSystemSession() {
     console.error('Shutdown save failed:', error);
   }
   quitting = true;
+  cloudSync?.dispose();
+  detachDisplayListeners();
   clearInterval(ticker);
   shortcuts?.dispose();
   savePosition();
@@ -222,12 +233,54 @@ function finishSystemSession() {
   app.quit();
 }
 
+async function requestQuit() {
+  if (quitting || shutdownRequested || quitPromptOpen) return;
+  quitPromptOpen = true;
+  closeActions();
+  try {
+    let continueTiming = false;
+    if (clock && clock.state.mode !== 'idle') {
+      const paused = clock.state.mode === 'paused';
+      quitDialogController = new AbortController();
+      const { response } = await dialog.showMessageBox({
+        type: 'question', title: tr('退出拾光'),
+        message: tr(paused ? '当前已暂停，退出后要开始计时吗？' : '退出后，还要继续记录工时吗？'),
+        detail: tr(paused
+          ? '继续计时：从现在开始计时，程序会完全退出，下次打开时补计期间的工时（包括关机时间）。\n保持暂停：退出期间不计工时，下次打开仍为暂停。已有工时都会保留。'
+          : '继续计时：程序会完全退出，下次打开时补计离开期间的工时（包括关机时间）。\n停止计时：工时记录到现在，已有记录会保留。'),
+        buttons: [tr('继续计时并退出'), tr(paused ? '保持暂停并退出' : '停止计时并退出'), tr('取消')],
+        defaultId: 2, cancelId: 2, noLink: true, signal: quitDialogController.signal
+      });
+      if (shutdownRequested || quitting || response === 2) return;
+      continueTiming = response === 0;
+    }
+    if (clock) clock = saveForExit(clock, store, { continueTiming });
+    quitting = true;
+    cloudSync?.dispose();
+    detachDisplayListeners();
+    clearInterval(ticker);
+    shortcuts?.dispose();
+    savePosition();
+    tray?.destroy();
+    instanceLease?.release();
+    app.quit();
+  } catch (error) {
+    console.error('Quit failed:', error);
+    storageError = '工时暂未保存，请检查磁盘空间或写入权限。';
+    broadcast();
+    dialog.showErrorBox(tr('拾光 · 尚未保存'), `${errorText(storageError)}\n${tr('修复后可再次退出。记录位置：')}${store.file}`);
+  } finally {
+    quitPromptOpen = false;
+    quitDialogController = null;
+  }
+}
+
 function createOrb() {
   let saved = {};
   try { saved = JSON.parse(fs.readFileSync(preferencesFile(), 'utf8')); } catch { /* First launch. */ }
   let position = safePosition(saved.x, saved.y);
   if (['left', 'right'].includes(saved.side) && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-    const area = screen.getDisplayMatching({ x: saved.x, y: saved.y, width: 32, height: 100 }).workArea;
+    const area = screen.getDisplayMatching({ x: saved.x, y: saved.y, ...MINI_SIZE }).workArea;
     position = { x: saved.side === 'left' ? area.x : area.x + area.width - ORB_SIZE, y: Math.max(area.y, Math.min(saved.y, area.y + area.height - ORB_SIZE)) };
   }
   orbWindow = secureWindow({
@@ -236,11 +289,27 @@ function createOrb() {
     frame: false, transparent: true, backgroundColor: '#00000000',
     resizable: false, maximizable: false, minimizable: false,
     alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
+    // WS_EX_TOOLWINDOW also keeps the floating orb out of Windows task switching.
+    ...(process.platform === 'win32' ? { type: 'toolbar' } : {}),
     title: tr('拾光 · 桌面工作球')
   });
   orbWindow.setAlwaysOnTop(true, 'floating');
   orbWindow.setVisibleOnAllWorkspaces(true);
+  orbWindow.on('show', () => orbWindow.setSkipTaskbar(true));
   orbLayout = new OrbWindow(orbWindow, screen, saved);
+  // Display events can arrive after Windows has destroyed the native window.
+  // Bind them to this instance and remove them before exit or on destruction.
+  const win = orbWindow, layout = orbLayout;
+  const displayRemoved = () => { if (!quitting && !win.isDestroyed()) layout.ensureVisible(); };
+  const displayChanged = () => { if (!layout.drag) displayRemoved(); };
+  detachDisplayListeners();
+  screen.on('display-removed', displayRemoved);
+  screen.on('display-metrics-changed', displayChanged);
+  detachDisplayListeners = () => {
+    screen.removeListener('display-removed', displayRemoved);
+    screen.removeListener('display-metrics-changed', displayChanged);
+  };
+  win.once('closed', detachDisplayListeners);
   orbWindow.loadFile(path.join(__dirname, 'renderer/orb.html'));
   orbWindow.once('ready-to-show', () => orbWindow.showInactive());
   orbWindow.on('blur', closeActions);
@@ -274,7 +343,7 @@ function openCalendar() {
 
 function openSettings(tab = 'general') {
   closeActions();
-  const selected = ['general', 'work', 'shortcuts', 'advanced'].includes(tab) ? tab : 'general';
+  const selected = ['general', 'work', 'monthly', 'cloud', 'shortcuts', 'advanced'].includes(tab) ? tab : 'general';
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.webContents.send('settings:tab', selected);
     if (settingsWindow.isMinimized()) settingsWindow.restore();
@@ -292,6 +361,37 @@ function openSettings(tab = 'general') {
   settingsWindow.once('ready-to-show', () => settingsWindow.show());
   settingsWindow.on('blur', () => shortcuts?.resume());
   settingsWindow.on('closed', () => { shortcuts?.resume(); settingsWindow = null; });
+}
+
+function openCelebration(summary, preview = false) {
+  if (quitting || shutdownRequested) return;
+  if (celebrationWindow && !celebrationWindow.isDestroyed()) { celebrationWindow.show(); return; }
+  const area = screen.getPrimaryDisplay().workArea;
+  celebrationData = { ...summary, preview, language: settings.language, theme: settings.theme };
+  const win = secureWindow({ width: Math.min(650, area.width), height: Math.min(740, area.height),
+    minWidth: Math.min(520, area.width), minHeight: Math.min(640, area.height),
+    frame: false, transparent: true, backgroundColor: '#00000000', resizable: false,
+    title: tr('拾光 · 月度里程碑') });
+  celebrationWindow = win;
+  win.once('closed', () => { if (celebrationWindow === win) { celebrationWindow = null; celebrationData = null; } });
+  win.once('ready-to-show', () => {
+    if (win.isDestroyed() || quitting) return;
+    win.show();
+    if (!preview) {
+      try { monthlyNotices.mark(summary); }
+      catch (error) { console.error('Milestone notice save failed:', error); nextCelebrationCheck = Date.now() + 60000; }
+    }
+  });
+  win.loadFile(path.join(__dirname, 'renderer/celebration.html')).catch(error => {
+    console.error('Milestone window failed:', error); nextCelebrationCheck = Date.now() + 60000;
+    if (!win.isDestroyed()) win.destroy();
+  });
+}
+
+function checkMonthlyMilestone() {
+  if (!monthlyNotices || quitting || shutdownRequested || quitPromptOpen || celebrationWindow || Date.now() < nextCelebrationCheck) return;
+  const pending = monthlyNotices.pending(snapshot().monthly);
+  if (pending) openCelebration(pending);
 }
 
 function showOrb() {
@@ -313,7 +413,7 @@ function menuTemplate() {
     { label: tr('让工作球回到主屏幕'), click: () => { orbLayout.restore(); const position = safePosition(); orbWindow.setPosition(position.x, position.y); showOrb(); savePosition(); } },
     { label: tr('打开数据文件夹'), click: () => shell.openPath(settings.dataDirectory) },
     { type: 'separator' },
-    { label: tr(clock.snapshot().active ? '签退并退出' : '退出拾光'), click: () => app.quit() }
+    { id: 'quit', label: tr('退出拾光'), click: () => app.quit() }
   ];
 }
 
@@ -327,9 +427,18 @@ function attachIPC() {
   const fromOrb = (event) => event.sender === orbWindow?.webContents;
   const fromCalendar = (event) => event.sender === calendarWindow?.webContents;
   const fromSettings = (event) => event.sender === settingsWindow?.webContents;
+  const fromCelebration = (event) => celebrationWindow && !celebrationWindow.isDestroyed() && event.sender === celebrationWindow.webContents;
   const fromApp = (event) => fromOrb(event) || fromCalendar(event) || fromSettings(event);
   ipcMain.handle('clock:get', (event) => fromApp(event) ? snapshot() : null);
-  ipcMain.handle('translations:get', event => fromApp(event) ? require('./locales/en.json') : {});
+  ipcMain.handle('translations:get', event => fromApp(event) || fromCelebration(event) ? require('./i18n.cjs').translations : {});
+  ipcMain.handle('celebration:get', event => fromCelebration(event) ? celebrationData : null);
+  ipcMain.on('celebration:close', event => { if (fromCelebration(event)) celebrationWindow.close(); });
+  ipcMain.handle('celebration:preview', event => {
+    if (!fromSettings(event)) return;
+    const current = snapshot().monthly, milestone = current.milestones.at(-1), threshold = milestone.hours;
+    openCelebration({ ...current, tier: milestone.id, achievedMilestone: { ...milestone, reached: true }, totalHours: threshold, totalMilliseconds: Math.round(threshold * 3600000),
+      estimatedAmount: milestone.amount, baseReached: true, bonusReached: milestone.bonusIndex > 0 }, true);
+  });
   ipcMain.handle('clock:toggle', (event) => fromApp(event) ? toggle() : null);
   const handleAction = (channel, allowed, action) => ipcMain.handle(channel, async (event, value) => {
     if (!allowed(event)) return { ok: false, error: tr('无效的窗口来源') };
@@ -357,6 +466,9 @@ function attachIPC() {
   });
   ipcMain.handle('settings:get', (event) => fromApp(event) ? settingsSnapshot() : null);
   handleAction('settings:save', fromSettings, (_event, patch) => saveSettings(patch));
+  ipcMain.handle('cloud:get', event => fromSettings(event) ? cloudSync.snapshot() : null);
+  handleAction('cloud:save', fromSettings, (_event, value) => cloudSync.configure(value));
+  handleAction('cloud:retry', fromSettings, () => cloudSync.flush(true));
   handleAction('shortcuts:check', fromSettings, (_event, bindings) => shortcutStatus(shortcuts.check(bindings)));
   handleAction('shortcuts:capture', fromSettings, (_event, capture) => {
     if (typeof capture !== 'boolean') throw new Error('无效的快捷键录入状态');
@@ -425,7 +537,9 @@ if (!hasLock) {
       settingsStore.save(settings);
       store = new FileStore(path.join(settings.dataDirectory, 'worklog.json'));
       clock = new WorkClock(store.load(path.resolve(settings.dataDirectory).toLowerCase() !== path.resolve(app.getPath('userData')).toLowerCase()));
-      clock.recoverInterrupted();
+      clock = restoreAfterExit(clock, store);
+      monthlyNotices = new MonthlyNoticeStore(app.getPath('userData'));
+      cloudSync = new CloudSync(app.getPath('userData'), safeStorage, () => snapshot(), { allowLocal: testMode });
       try { configureStartup(settings.launchAtLogin, { preserveDisabled: true }); } catch (error) { startupError = error.message; }
     } catch (error) {
       dialog.showErrorBox(tr('拾光 · 数据读取失败'), errorText(error.message));
@@ -444,7 +558,7 @@ if (!hasLock) {
     ticker = setInterval(() => {
       const elapsed = performance.now();
       if (elapsed - lastSave >= 15000) persist();
-      if (elapsed - lastBroadcast >= 1000) { broadcast(); lastBroadcast = elapsed; }
+      if (elapsed - lastBroadcast >= 1000) { broadcast(); lastBroadcast = elapsed; checkMonthlyMilestone(); cloudSync.tick(); }
       // Transparent corners pass clicks through to the desktop.
       if (orbWindow && !orbWindow.isDestroyed() && orbWindow.isVisible()) {
         const cursor = screen.getCursorScreenPoint();
@@ -455,25 +569,14 @@ if (!hasLock) {
     powerMonitor.on('suspend', persist);
     powerMonitor.on('shutdown', finishSystemSession);
     powerMonitor.on('resume', () => { persist(); broadcast(); });
-    screen.on('display-removed', () => orbLayout.ensureVisible());
-    screen.on('display-metrics-changed', () => { if (!orbLayout.drag) orbLayout.ensureVisible(); });
     if (testMode && process.env.SHIGUANG_OPEN_CALENDAR === '1') openCalendar();
   }).catch(error => { dialog.showErrorBox('Shiguang', error.message); app.exit(1); });
   app.on('window-all-closed', () => { /* The tray owns the application lifetime. */ });
   app.on('before-quit', (event) => {
     if (quitting) return;
-    try { if (clock) clock = saveForExit(clock, store); }
-    catch (error) {
-      storageError = '工时暂未保存，请检查磁盘空间或写入权限。';
-      event.preventDefault();
-      dialog.showErrorBox(tr('拾光 · 尚未保存'), `${errorText(storageError)}\n${tr('修复后可再次退出。记录位置：')}${store.file}`);
-      return;
-    }
-    quitting = true;
-    clearInterval(ticker);
-    shortcuts?.dispose();
-    savePosition();
-    tray?.destroy();
-    instanceLease?.release();
+    event.preventDefault();
+    // Leave before-quit before attempting app.quit() again. In the idle path
+    // no dialog is awaited, so quitting synchronously here would be reentrant.
+    setImmediate(() => { void requestQuit(); });
   });
 }

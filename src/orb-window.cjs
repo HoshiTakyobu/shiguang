@@ -1,4 +1,4 @@
-const SIZE = 208, MINI_SIZE = { width: 32, height: 100 }, EDGE_DISTANCE = 20;
+const SIZE = 208, MINI_SIZE = { width: 52, height: 100 }, EDGE_DISTANCE = 20;
 const clamp = (value, min, max) => Math.round(Math.min(Math.max(value, min), Math.max(min, max)));
 
 function dockBounds(side, area, y) {
@@ -19,23 +19,31 @@ class OrbWindow {
     if (['left', 'right'].includes(saved.side)) this.dock(saved.side, screen.getDisplayMatching(win.getBounds()).workArea, saved.y);
   }
   sendLayout() {
-    if (!this.win.isDestroyed()) this.win.webContents.send('orb:layout', { side: this.side });
+    if (!this.win.isDestroyed() && !this.win.webContents.isDestroyed()) this.win.webContents.send('orb:layout', { side: this.side });
   }
-  dock(side, area = this.screen.getDisplayMatching(this.win.getBounds()).workArea, y = this.win.getBounds().y) {
+  dock(side, area, y) {
+    if (this.win.isDestroyed()) return;
+    const bounds = this.win.getBounds();
+    area ??= this.screen.getDisplayMatching(bounds).workArea;
+    y ??= bounds.y;
     this.side = side;
     this.win.setBounds(dockBounds(side, area, y));
     this.sendLayout();
   }
   restore() {
-    if (!this.side) return;
+    if (this.win.isDestroyed() || !this.side) return;
     const bounds = this.win.getBounds(), area = this.screen.getDisplayMatching(bounds).workArea;
     const x = this.side === 'left' ? area.x + 24 : area.x + area.width - SIZE - 24;
     this.side = null;
     this.win.setBounds(normalBounds(area, x, bounds.y - (SIZE - MINI_SIZE.height) / 2));
     this.sendLayout();
   }
-  startDrag() { this.drag = { cursor: this.screen.getCursorScreenPoint(), bounds: this.win.getBounds(), moved: false }; }
+  startDrag() {
+    if (this.win.isDestroyed()) return;
+    this.drag = { cursor: this.screen.getCursorScreenPoint(), bounds: this.win.getBounds(), moved: false };
+  }
   moveDrag() {
+    if (this.win.isDestroyed()) { this.drag = null; return; }
     if (!this.drag) return;
     const point = this.screen.getCursorScreenPoint();
     if (Math.hypot(point.x - this.drag.cursor.x, point.y - this.drag.cursor.y) <= 5 && !this.drag.moved) return;
@@ -49,6 +57,7 @@ class OrbWindow {
     this.win.setBounds(normalBounds(area, this.drag.bounds.x + point.x - this.drag.cursor.x, this.drag.bounds.y + point.y - this.drag.cursor.y));
   }
   endDrag() {
+    if (this.win.isDestroyed()) { this.drag = null; return; }
     if (!this.drag) return;
     if (this.drag.moved) {
       const bounds = this.win.getBounds(), area = this.screen.getDisplayMatching(bounds).workArea;
@@ -58,23 +67,32 @@ class OrbWindow {
     this.drag = null;
   }
   ensureVisible() {
+    if (this.win.isDestroyed()) return;
     const bounds = this.win.getBounds(), area = this.screen.getDisplayMatching(bounds).workArea;
     if (this.side) this.dock(this.side, area, bounds.y);
     else this.win.setBounds(normalBounds(area, bounds.x, bounds.y));
   }
   hitTest(point, split = false) {
+    if (this.win.isDestroyed()) return false;
     const b = this.win.getBounds();
-    const cx = this.side === 'left' ? -20 : this.side === 'right' ? 52 : SIZE / 2;
-    const cy = this.side ? 50 : SIZE / 2;
+    // Match the 104 x 80 CSS ellipse, with 40px exposed at either edge.
+    if (this.side) {
+      const cx = this.side === 'left' ? -12 : 64;
+      return ((point.x - b.x - cx) / 53) ** 2 + ((point.y - b.y - 50) / 41) ** 2 <= 1;
+    }
     // Split halves move outward, including on hover; their outer rims remain clickable.
-    return Math.hypot(point.x - b.x - cx, point.y - b.y - cy) <= (this.side ? 41 : split ? 98 : 91);
+    return Math.hypot(point.x - b.x - SIZE / 2, point.y - b.y - SIZE / 2) <= (split ? 98 : 91);
   }
   lookAt(point) {
+    if (this.win.isDestroyed() || this.win.webContents.isDestroyed()) return;
     const b = this.win.getBounds();
     const dx = point.x - (b.x + b.width / 2), dy = point.y - (b.y + b.height / 2);
     const length = Math.max(1, Math.hypot(dx, dy));
     this.win.webContents.send('orb:look', { x: dx / length * Math.min(1.8, length / 120), y: dy / length * Math.min(2.5, length / 100) });
   }
-  preferences() { const { x, y } = this.win.getBounds(); return { x, y, side: this.side }; }
+  preferences() {
+    if (this.win.isDestroyed()) return null;
+    const { x, y } = this.win.getBounds(); return { x, y, side: this.side };
+  }
 }
-module.exports = { OrbWindow, dockBounds, normalBounds, edgeAt };
+module.exports = { OrbWindow, MINI_SIZE, dockBounds, normalBounds, edgeAt };

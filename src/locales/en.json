@@ -192,7 +192,7 @@
   " · 查看每日记录": " · View daily records",
   "无效的记录时间": "Invalid record time",
   "无效的记录原因": "Invalid record reason",
-  "按本机时间在零点分日。工作中锁屏和睡眠继续计时，临时离开不计时；关机、重启或注销会自动下班，异常中断按最后保存时间结束。": "Days split at local midnight. While working, lock and sleep time count; breaks do not. Shutdown, restart and sign-out clock you out. An interrupted session ends at the last saved time.",
+  "按本机时间在零点分日。工作中锁屏和睡眠继续计时，临时离开不计时。退出时可选择继续计时，下次打开会补计退出期间的工时（包括关机时间）；程序运行中关机、重启或注销会自动下班，异常中断按最后保存时间结束。": "Days split at local midnight. Lock and sleep time count while working; breaks do not. Choose to keep timing on exit to add time away (including shutdown time) when you reopen the app. While the app is running, shutdown, restart or sign-out clocks you out. An interrupted session ends at the last saved time.",
   "在日历中点击日期查看记录，再点击「补录工时」，即可补充时长或修正当天累计。": "Click a calendar date to view its records, then choose Add time to add missing hours or correct the day's total.",
   "快捷键": "Shortcuts",
   "在其他应用中，也能用快捷键控制拾光。": "Control Shiguang with shortcuts while using other apps.",
@@ -237,5 +237,13 @@
   "快捷键设置无效。": "Invalid shortcut settings.",
   "快捷键管理器已关闭。": "The shortcut manager is closed.",
   "保存快捷键的回调必须是同步函数。": "The shortcut save callback must be synchronous.",
-  "重新检查": "Check again"
+  "重新检查": "Check again",
+  "退出后，还要继续记录工时吗？": "Keep recording work time after exit?",
+  "当前已暂停，退出后要开始计时吗？": "You are paused. Start timing after exit?",
+  "继续计时：程序会完全退出，下次打开时补计离开期间的工时（包括关机时间）。\n停止计时：工时记录到现在，已有记录会保留。": "Keep timing: the app will close completely and add time away when reopened, including time while the computer is shut down.\nStop timing: record work up to now and keep all existing records.",
+  "继续计时：从现在开始计时，程序会完全退出，下次打开时补计期间的工时（包括关机时间）。\n保持暂停：退出期间不计工时，下次打开仍为暂停。已有工时都会保留。": "Keep timing: start timing now, close the app completely, and add time away when reopened, including shutdown time.\nStay paused: do not count time away and reopen paused. All existing work time is kept.",
+  "继续计时并退出": "Keep timing and exit",
+  "停止计时并退出": "Stop timing and exit",
+  "保持暂停并退出": "Stay paused and exit",
+  "退出时选择继续计时": "Chose to resume timing on exit"
 }

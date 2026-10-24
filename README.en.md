@@ -23,7 +23,9 @@ A playful, local-first desktop companion for tracking personal work hours on Win
 ## Features
 
 - Click the blue orb to clock in. While working, click to split it diagonally into two smiling companions: coral **Take a break** at the upper right and blue **Clock out** at the lower left. While paused, choose green **I'm back** at the upper left or blue **Clock out** at the lower right. Breaks do not count toward work time.
-- Drag the orb to either screen edge to shrink it into a tiny peeking companion, with only one quarter showing and eyes following your cursor. Click or drag it out to restore it.
+- Drag the orb to either screen edge for a wider peeking companion, exposing about 40 pixels without increasing its height. Eyes follow your cursor. Click or drag it out to restore it. The floating orb stays out of the taskbar and Alt+Tab.
+- Set a monthly base goal and add or remove multiple optional Bonus milestones, each with its own hours and estimated monthly income. Defaults are a 160-hour / CNY 800 base and one 200-hour / CNY 1600 Bonus. Hours must increase at each level; total monthly incomes cannot decrease. Progress targets the next unmet milestone. Each amount is the total for that month. Celebrate each milestone once per month; crossing several at once celebrates the highest reached level. Existing single-Bonus settings and reminder history are preserved.
+- Optionally connect to your own server and sign in on your phone to see live work time across networks. The read-only page shows last-sync and offline status. See [server setup](cloud/README.md).
 - Double-click to open this month's calendar without changing the work status.
 - Click a date to see exact clock-in, break, resume and clock-out times, plus work and break intervals split at local midnight.
 - Watch today's cumulative `HH:MM:SS` update live, capped at `24:00:00` per day. Sessions crossing midnight are split by local date; weekly and monthly totals may exceed 24 hours.
@@ -32,7 +34,7 @@ A playful, local-first desktop companion for tracking personal work hours on Win
 - Choose **Add time** in a daily record or the calendar toolbar to add missing time or correct a day's total, including while today's timer is active. Adjustments preserve the original intervals and record the change in total.
 - Three themes, a configurable ring target, Windows login startup, data relocation and backup export.
 - Configure global shortcuts for clock in, take a break, resume, clock out, and show/hide the orb in **Settings → Shortcuts**. All are disabled until configured; saving checks for duplicate or unavailable key combinations.
-- Switch between English and Simplified Chinese in settings. Offline operation with bundled fonts; no account or cloud service.
+- Switch between English and Simplified Chinese in settings. Offline by default with bundled fonts; phone viewing is an optional connection to your own server.
 - One production instance per computer, even when launched from another folder.
 
 <p align="center">
@@ -59,7 +61,7 @@ Current builds are unsigned. Windows may show an unknown-publisher or SmartScree
 
 ## Timing and data
 
-Working time includes lock and sleep time; paused time does not. Normal exit saves and clocks out an active session, while preserving pauses. Windows shutdown, restart and sign-out clock out both working and paused sessions. After an abnormal interruption, work ends at the last successfully saved checkpoint; time while the application was not running is not added. Active time is saved every 15 seconds and when work status changes.
+Working time includes lock and sleep time; paused time does not. On exit, choose to keep timing or stop. Keeping timing closes the process completely and counts the gap on next launch, including time while the computer was shut down. Paused sessions can stay paused or start timing from exit. Shutdown, restart and sign-out while the app is running still clock you out. Abnormal interruptions stop at the last saved checkpoint. Active time is saved every 15 seconds and on state changes.
 
 Version 1.5.0 adds timestamped events and daily intervals. Older daily totals are preserved, but past clock-in and clock-out times cannot be reconstructed. Manual corrections record the adjustment without inventing work intervals, so the daily total can differ from the sum of recorded intervals. Exported backups include the available details and restore in the off-work state.
 
@@ -77,6 +79,10 @@ npm start
 npm test
 npm run test:startup
 npm run test:shutdown
+npm run test:exit
+npm run test:monthly
+npm run test:cloud
+npm run test:phone
 npm run test:shortcuts
 npm run test:system
 npm run test:ui

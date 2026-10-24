@@ -1,6 +1,6 @@
 {
   "name": "shiguang-work-orb",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "description": "拾光 · 会陪你上下班的桌面工作球",
   "author": {
@@ -22,10 +22,14 @@
   "main": "src/main.cjs",
   "scripts": {
     "start": "electron .",
-    "test": "node --test tests/clock.test.cjs tests/store.test.cjs tests/settings.test.cjs tests/orb-window.test.cjs tests/lifecycle.test.cjs tests/shortcuts.test.cjs",
+    "test": "node --test tests/clock.test.cjs tests/store.test.cjs tests/settings.test.cjs tests/orb-window.test.cjs tests/lifecycle.test.cjs tests/shortcuts.test.cjs tests/monthly.test.cjs",
     "test:ui": "node tests/electron-smoke.cjs",
     "test:startup": "node tests/startup-native.cjs",
     "test:shutdown": "node tests/shutdown-native.cjs",
+    "test:exit": "node tests/exit-native.cjs",
+    "test:monthly": "node tests/monthly-native.cjs",
+    "test:cloud": "node --test tests/cloud.test.cjs",
+    "test:phone": "node tests/cloud-native.cjs",
     "test:shortcuts": "node tests/shortcuts-native.cjs",
     "pack": "node scripts/build.cjs --dir",
     "dist": "node scripts/build.cjs",

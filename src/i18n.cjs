@@ -1,4 +1,4 @@
-const en = require('./locales/en.json');
+const en = { ...require('./locales/en.json'), ...require('./locales/extra-en.json') };
 function translate(text, language = 'zh-CN', values = {}) {
   let result = language === 'en' ? (en[text] || text) : text;
   for (const [key, value] of Object.entries(values)) result = result.replaceAll(`{${key}}`, String(value));
@@ -13,4 +13,4 @@ function translateError(text, language = 'zh-CN') {
   }
   return result;
 }
-module.exports = { translate, translateError };
+module.exports = { translate, translateError, translations: en };

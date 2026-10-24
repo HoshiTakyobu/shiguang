@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'">
+  <title>拾光 · 月度里程碑</title><link rel="stylesheet" href="base.css"><link rel="stylesheet" href="celebration.css">
+</head>
+<body>
+  <main class="celebration-shell">
+    <canvas id="confetti" aria-hidden="true"></canvas>
+    <header class="celebration-header"><span class="mini-brand">✧ 拾光</span><span id="celebration-month"></span><button id="dismiss-celebration" aria-label="关闭">×</button></header>
+    <div class="celebration-content">
+      <span id="preview-label" class="preview-label" hidden>效果预览</span>
+      <div class="award-scene" aria-hidden="true">
+        <span class="scene-star star-one">✦</span><span class="scene-star star-two">✧</span><span class="scene-star star-three">✦</span>
+        <div class="award-orbit"></div><div class="award-rays"></div>
+        <div class="award-orb"><div class="award-eyes"><i></i><i></i></div><div class="award-cheeks"></div><div class="award-smile"></div><span class="award-crown">♛</span></div>
+        <div class="award-ribbon" id="award-ribbon">BONUS UNLOCKED</div>
+        <div class="little-orb little-left"><i></i><i></i></div><div class="little-orb little-right"><i></i><i></i></div>
+      </div>
+      <p id="celebration-kicker" class="celebration-kicker">给这个月认真的你</p>
+      <h1 id="celebration-title"></h1>
+      <p id="celebration-subtitle" class="celebration-subtitle"></p>
+      <section class="reward-ticket" aria-label="预计月收入">
+        <div class="ticket-heading"><span id="reward-tier"></span><span>有望获得</span></div>
+        <div class="reward-money"><span>CNY</span><strong id="reward-amount">1600.0</strong><span>/月</span></div>
+        <div class="ticket-rule"></div><p>按你设置的月度规则估算</p>
+      </section>
+      <div class="achievement-detail"><div><span>本月已累计</span><strong id="achieved-hours"></strong></div><div><span>基础门槛</span><strong id="achieved-base"></strong></div><div id="achieved-bonus-block"><span>Bonus 门槛</span><strong id="achieved-bonus"></strong></div></div>
+      <p class="warm-note">每一份认真，都值得被看见。</p>
+      <div class="celebration-actions"><button id="replay-confetti" class="button">再撒一次礼花</button><button id="close-celebration" class="button primary">带着好心情继续</button></div>
+    </div>
+  </main>
+  <script type="module" src="celebration.js"></script>
+</body></html>

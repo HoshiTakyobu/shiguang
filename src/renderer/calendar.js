@@ -1,4 +1,4 @@
-import { formatTime, dateKey, monthWeeks, ringColor, targetLabel, DAY_LIMIT } from './shared.mjs';
+import { formatTime, dateKey, monthWeeks, ringColor, targetLabel, DAY_LIMIT, formatAmount, monthlyMilestones } from './shared.mjs';
 import { setLanguage, t, weekdays } from './i18n.mjs';
 import { createSplitChoices } from './split-choices.mjs';
 
@@ -8,6 +8,7 @@ const dayElements = new Map();
 const weekElements = [];
 const englishMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const $ = (selector) => document.querySelector(selector);
+$('#monthly-configure').addEventListener('click', () => api.openSettings('monthly'));
 const circumference = 2 * Math.PI * 21;
 let editSaving = false;
 let detailDate, detailRequest, detailGeneration = 0;
@@ -81,6 +82,25 @@ function render() {
   const monthTotal = entries.reduce((sum, [, ms]) => sum + ms, 0);
   $('#month-total').textContent = hours(monthTotal);
   $('#month-total').title = formatTime(monthTotal);
+  const goals = state.settings.monthlyGoals, monthHours = monthTotal / 3600000;
+  const milestones = monthlyMilestones(goals, monthTotal), baseReached = milestones[0].reached;
+  const target = milestones.find(milestone => !milestone.reached) || milestones.at(-1);
+  const allReached = milestones.every(milestone => milestone.reached), goalHours = target.hours;
+  const tierLabel = milestone => milestone.bonusIndex ? `Bonus${goals.bonuses.length > 1 ? ` ${milestone.bonusIndex}` : ''}` : t('基础');
+  const remaining = Math.max(0, goalHours - monthHours);
+  $('#monthly-month').textContent = `${shownYear}.${String(shownMonth + 1).padStart(2, '0')} · ${t('月度目标')}`;
+  $('#monthly-status').textContent = allReached ? t('本月目标达成，做得真好！') : baseReached ? t('向 {tier} 前进', { tier: tierLabel(target) }) : t('每一小时，都离目标更近');
+  $('#monthly-income').textContent = `CNY ${formatAmount(target.amount)} ${t('/月')}`;
+  $('#monthly-fill').style.width = `${Math.min(100, monthHours / goalHours * 100)}%`;
+  $('#monthly-track').setAttribute('aria-valuenow', String(Math.min(100, monthHours / goalHours * 100)));
+  $('#monthly-track').setAttribute('aria-valuetext', t('{current} / {target} 小时', { current: hours(monthTotal), target: goalHours }));
+  $('#monthly-milestones').replaceChildren(...milestones.map(milestone => {
+    const label = document.createElement('span'); label.dataset.milestoneId = milestone.id;
+    label.textContent = `${milestone.reached ? '✓' : milestone.bonusIndex ? '✧' : '○'} ${tierLabel(milestone)} ${milestone.hours}h · CNY ${formatAmount(milestone.amount)}`;
+    return label;
+  }));
+  $('#monthly-remaining').textContent = remaining > 0 ? t('还差 {hours} 小时达成{tier}', { hours: (Math.ceil(Math.max(0, Math.round(goalHours * 3600000) - monthTotal) / 36000) / 100).toFixed(2), tier: target.bonusIndex ? ` ${tierLabel(target)}` : t('基础目标') }) : t('已达成全部目标，工时仍会继续累计');
+  $('.monthly-progress-card').dataset.reached = String(baseReached);
   $('#completed-days').textContent = entries.filter(([, ms]) => ms >= state.target).length;
   $('#today-time').textContent = formatTime(state.days[state.today] || 0);
   $('#work-status').textContent = t({ working: '上班中', paused: '已暂停', idle: '已下班' }[state.mode]);
@@ -124,7 +144,7 @@ function render() {
 }
 
 const eventNames = { 'clock-in': '上班', pause: '休息', resume: '继续工作', 'clock-out': '下班', adjust: '工时调整', 'recording-started': '开始记录明细' };
-const reasonNames = { shutdown: '关机 / 重启 / 注销时自动下班', quit: '退出程序时自动下班', interrupted: '异常中断，按最后保存时间下班', legacy: '旧版仅保留总时长，此处开始记录明细', export: '导出备份时结束记录', shortcut: '快捷键操作' };
+const reasonNames = { shutdown: '关机 / 重启 / 注销时自动下班', quit: '退出程序时自动下班', 'quit-continue': '退出时选择继续计时', interrupted: '异常中断，按最后保存时间下班', legacy: '旧版仅保留总时长，此处开始记录明细', export: '导出备份时结束记录', shortcut: '快捷键操作' };
 function node(tag, className, text) {
   const element = document.createElement(tag);
   element.className = className;

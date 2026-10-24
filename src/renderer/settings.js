@@ -4,6 +4,7 @@ import { setLanguage, t } from './i18n.mjs';
 const api = window.shiguang;
 const $ = selector => document.querySelector(selector);
 let settings;
+let monthlyGoalsSignature;
 const shortcutIds = ['clockIn', 'pause', 'resume', 'clockOut', 'toggleOrb'];
 const shortcutNames = { clockIn: '上班', pause: '休息', resume: '恢复工作', clockOut: '下班', toggleOrb: '隐藏或显示悬浮球' };
 let shortcutDraft, shortcutStatus = {}, shortcutChecking = false, shortcutSaving = false, shortcutsSaved = false;
@@ -214,7 +215,7 @@ window.addEventListener('blur', () => { void cancelRecording(); });
 window.addEventListener('beforeunload', () => { void cancelRecording(); });
 
 function selectTab(tab) {
-  const name = ['general', 'work', 'shortcuts', 'advanced'].includes(tab) ? tab : 'general';
+  const name = ['general', 'work', 'monthly', 'cloud', 'shortcuts', 'advanced'].includes(tab) ? tab : 'general';
   if (currentTab !== name) void cancelRecording();
   currentTab = name;
   document.querySelectorAll('[data-tab]').forEach(button => {
@@ -225,6 +226,7 @@ function selectTab(tab) {
   $('.settings-content').scrollTop = 0;
   $('#settings-error').hidden = true;
   $('#settings-feedback').hidden = name === 'shortcuts';
+  if (name === 'cloud') void refreshCloud();
 }
 
 function renderSettings() {
@@ -236,6 +238,19 @@ function renderSettings() {
   $('#launch-at-login').checked = settings.launchAtLogin;
   $('#target-hours').value = Math.floor(settings.targetMinutes / 60);
   $('#target-minutes').value = settings.targetMinutes % 60;
+  const goals = settings.monthlyGoals;
+  const signature = JSON.stringify(goals);
+  if (signature !== monthlyGoalsSignature) {
+    $('#monthly-base-hours').value = goals.baseHours;
+    $('#monthly-base-amount').value = goals.baseAmount;
+    $('#monthly-bonus-enabled').checked = goals.bonusEnabled;
+    $('#monthly-celebrations').checked = goals.celebrations;
+    renderBonusRows(goals.bonuses);
+    monthlyGoalsSignature = signature;
+  } else {
+    renderBonusRows(bonusDraft());
+  }
+  updateBonusFields();
   $('#data-directory').textContent = settings.dataDirectory;
   $('#version').textContent = `${t('拾光')} ${settings.appVersion}`;
   $('#language').value = settings.language;
@@ -299,6 +314,86 @@ $('#launch-at-login').addEventListener('change', event => action(() => api.saveS
 $('#language').addEventListener('change', event => action(() => api.saveSettings({ language: event.target.value }), '界面语言已保存', event.target));
 $('#week-start').addEventListener('change', event => action(() => api.saveSettings({ weekStart: Number(event.target.value) }), '每周起始日已保存', event.target));
 $('#target-form').addEventListener('input', updateTargetPreview);
+function updateBonusFields() {
+  const enabled = $('#monthly-bonus-enabled').checked;
+  $('#monthly-bonus-fields').hidden = !enabled;
+  $('#monthly-bonus-fields').querySelectorAll('input, button').forEach(field => { field.disabled = !enabled; });
+}
+function bonusDraft() {
+  return Array.from($('#monthly-bonus-list').children, row => ({ id: row.dataset.bonusId,
+    hours: row.querySelector('[data-bonus-field="hours"]').value,
+    amount: row.querySelector('[data-bonus-field="amount"]').value }));
+}
+function renderBonusRows(bonuses) {
+  const list = $('#monthly-bonus-list');
+  list.replaceChildren();
+  bonuses.forEach((bonus, index) => {
+    const row = document.createElement('div'); row.className = 'monthly-bonus-row'; row.dataset.bonusId = bonus.id;
+    const heading = document.createElement('div'); heading.className = 'setting-row';
+    const title = document.createElement('h3'); title.textContent = `Bonus ${index + 1}`;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'button monthly-remove-bonus';
+    remove.textContent = t('移除'); remove.setAttribute('aria-label', t('移除 Bonus {number}', { number: index + 1 }));
+    remove.addEventListener('click', () => { renderBonusRows(bonusDraft().filter(item => item.id !== bonus.id)); updateBonusFields(); });
+    heading.append(title, remove); row.append(heading);
+    const fields = document.createElement('div'); fields.className = 'monthly-fields';
+    for (const [key, label, min, max] of [['hours', 'Bonus 门槛（小时）', 1, 744], ['amount', 'Bonus 档月收入（CNY）', 0, 99999999]]) {
+      const field = document.createElement('label'); field.className = 'field'; field.append(document.createTextNode(t(label)));
+      const input = document.createElement('input'); input.type = 'number'; input.min = min; input.max = max; input.step = '0.01';
+      input.required = true; input.dataset.bonusField = key; input.value = bonus[key];
+      input.setAttribute('aria-label', `Bonus ${index + 1} · ${t(label)}`); field.append(input); fields.append(field);
+    }
+    row.append(fields); list.append(row);
+  });
+  $('#monthly-bonus-empty').hidden = bonuses.length !== 0;
+}
+$('#add-monthly-bonus').addEventListener('click', () => {
+  const bonuses = bonusDraft(), previous = bonuses.at(-1);
+  const hours = Number(previous?.hours ?? $('#monthly-base-hours').value);
+  const amount = Number(previous?.amount ?? $('#monthly-base-amount').value);
+  if (!Number.isFinite(hours) || hours < 1 || hours >= 744 || !Number.isFinite(amount) || amount < 0) {
+    $('#settings-error').textContent = t('请先设置有效的前一档，工时须小于 744 小时。'); $('#settings-error').hidden = false; return;
+  }
+  bonuses.push({ id: `bonus-${crypto.randomUUID()}`, hours: Math.min(744, Math.round((hours + 40) * 100) / 100), amount });
+  renderBonusRows(bonuses); updateBonusFields();
+  const row = $('#monthly-bonus-list').lastElementChild;
+  row.querySelector('input').focus(); row.scrollIntoView({ block: 'nearest' });
+});
+$('#monthly-bonus-enabled').addEventListener('change', updateBonusFields);
+$('#monthly-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const monthlyGoals = { baseHours: Number($('#monthly-base-hours').value), baseAmount: Number($('#monthly-base-amount').value),
+    bonusEnabled: $('#monthly-bonus-enabled').checked, bonuses: bonusDraft().map(bonus => ({ ...bonus, hours: Number(bonus.hours), amount: Number(bonus.amount) })),
+    currency: 'CNY', celebrations: $('#monthly-celebrations').checked };
+  action(() => api.saveSettings({ monthlyGoals }), '月度目标已保存', $('#save-monthly'));
+});
+$('#preview-celebration').addEventListener('click', () => api.previewCelebration());
+let cloudInitialized = false;
+function renderCloud(value, updateFields = false) {
+  if (!value) return;
+  if (!cloudInitialized || updateFields) {
+    $('#cloud-enabled').checked = value.enabled; $('#cloud-endpoint').value = value.endpoint; $('#cloud-token').value = '';
+    cloudInitialized = true;
+  }
+  $('#cloud-token').placeholder = t(value.hasToken ? '连接密钥已保存，留空可沿用' : '粘贴服务器提供的连接密钥');
+  $('#cloud-status').textContent = t({ disabled: '未开启', waiting: '等待连接', connecting: '正在同步', connected: '已连接', error: '连接暂时中断' }[value.status] || '等待连接');
+  $('#cloud-last-sync').textContent = value.lastSyncedAt ? t('最近同步：{time}', { time: new Date(value.lastSyncedAt).toLocaleTimeString(settings.language) }) : t('尚未成功同步');
+  $('#cloud-error').hidden = !value.error; $('#cloud-error').textContent = t(value.error || '');
+}
+async function refreshCloud() { try { renderCloud(await api.getCloudSettings()); } catch { /* The window may be closing. */ } }
+$('#cloud-form').addEventListener('submit', async event => {
+  event.preventDefault(); $('#save-cloud').disabled = true; $('#cloud-error').hidden = true;
+  try {
+    const result = await api.saveCloudSettings({ enabled: $('#cloud-enabled').checked, endpoint: $('#cloud-endpoint').value, token: $('#cloud-token').value });
+    if (!result.ok) throw new Error(result.error); renderCloud(result.value, true);
+  } catch (error) { $('#cloud-error').textContent = t(error.message); $('#cloud-error').hidden = false; }
+  finally { $('#save-cloud').disabled = false; }
+});
+$('#retry-cloud').addEventListener('click', async () => {
+  $('#retry-cloud').disabled = true;
+  try { const result = await api.retryCloudSync(); if (result.ok) renderCloud(result.value); }
+  finally { $('#retry-cloud').disabled = false; }
+});
+setInterval(() => { if (currentTab === 'cloud') void refreshCloud(); }, 2000);
 $('#target-form').addEventListener('submit', event => {
   event.preventDefault();
   const targetMinutes = Number($('#target-hours').value) * 60 + Number($('#target-minutes').value);

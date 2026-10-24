@@ -1,4 +1,10 @@
 export const DAY_LIMIT = 24 * 60 * 60 * 1000;
+export function formatAmount(value) { return Number(value).toFixed(2).replace(/(\.\d)0$/, '$1'); }
+export function monthlyMilestones(goals, totalMilliseconds) {
+  return [{ id: 'base', hours: goals.baseHours, amount: goals.baseAmount, bonusIndex: 0 },
+    ...(goals.bonusEnabled ? goals.bonuses.map((bonus, index) => ({ ...bonus, bonusIndex: index + 1 })) : [])]
+    .map(milestone => ({ ...milestone, reached: totalMilliseconds >= Math.round(milestone.hours * 3600000) }));
+}
 
 export function formatTime(ms) {
   const seconds = Math.floor(Math.max(0, ms) / 1000);

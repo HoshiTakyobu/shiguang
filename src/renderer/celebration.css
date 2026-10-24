@@ -1,0 +1,43 @@
+body { padding: 9px; height: 100vh; background: transparent; user-select: none; }
+.celebration-shell { height: 100%; overflow: hidden; position: relative; border: 1px solid #d4e1cc; border-radius: 29px; background: radial-gradient(ellipse at 50% 13%, #fffbed 0%, #f8f8ec 28%, transparent 58%), linear-gradient(150deg, #edf7ec, #f9f8ee 58%, #eeeaf9); box-shadow: 0 5px 15px #31473316; }
+#confetti { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+.celebration-header { height: 49px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px 0 24px; color: #80917a; font: 800 12px Nunito, 'Noto Sans SC', sans-serif; letter-spacing: 1px; -webkit-app-region: drag; }
+.mini-brand { font-family: FangzhengCuYuan, sans-serif; font-size: 17px; color: #6e8862; }
+.celebration-header button { border: 0; background: transparent; color: #788771; font-size: 26px; width: 32px; height: 32px; border-radius: 50%; letter-spacing: 0; line-height: 1; }
+.celebration-header button:hover { background: #e6edde; }
+.celebration-content { height: calc(100% - 49px); overflow: auto; scrollbar-width: thin; padding: 0 40px 22px; text-align: center; position: relative; }
+.preview-label { position: absolute; left: 24px; top: 4px; font-size: 11px; border-radius: 12px; border: 1px solid #d4dcca; padding: 3px 10px; color: #7d8a6e; background: #f8f9ef; }
+.award-scene { position: relative; width: 260px; height: 178px; margin: 0 auto -1px; }
+.award-orbit { position: absolute; width: 227px; height: 140px; border: 1px dashed #d4dcb8; border-radius: 50%; left: 16px; top: 19px; rotate: -20deg; }
+.award-rays { position: absolute; inset: -8px 10px -8px; border-radius: 50%; background: repeating-conic-gradient(from 13deg, #f3df972b 0deg 10deg, transparent 10deg 28deg); mask-image: radial-gradient(ellipse, transparent 38%, black 40%, transparent 69%); }
+.award-orb { position: absolute; top: 26px; left: 72px; width: 116px; height: 116px; border-radius: 47% 53% 50% 50%; background: linear-gradient(145deg, #fffbe4, #f3e6a8 57%, #d4c884); border: 2px solid #d5c57a; box-shadow: inset 3px 5px 4px #fffef2, 0 10px 20px #aabe8c36; animation: award-float 4s ease-in-out infinite; }
+.award-crown { position: absolute; font-size: 45px; color: #c9a554; top: -39px; left: 32px; rotate: -9deg; text-shadow: 1px 2px #fff8d9; }
+.award-eyes { display: flex; gap: 29px; justify-content: center; padding-top: 43px; }
+.award-eyes i { width: 9px; height: 17px; background: #766847; border-radius: 50%; }
+.award-smile { position: absolute; top: 63px; left: 42px; width: 29px; height: 16px; border: 3px solid #766847; border-top: 0; border-radius: 0 0 20px 20px; }
+.award-cheeks { position: absolute; left: 18px; top: 62px; width: 78px; height: 11px; background: radial-gradient(ellipse at 8px 5px, #e6a28780 0 8px, transparent 9px), radial-gradient(ellipse at 70px 5px, #e6a28780 0 8px, transparent 9px); }
+.award-ribbon { position: absolute; bottom: 19px; left: 48px; width: 164px; border-radius: 6px; padding: 7px 0; color: #fffef0; background: #809975; box-shadow: 0 4px 0 #617a54; font: 900 12px Nunito, sans-serif; letter-spacing: 1.3px; rotate: -5deg; }
+.scene-star { position: absolute; z-index: 2; font-size: 28px; color: #c7ad65; }
+.star-one { left: 14px; top: 21px; rotate: -12deg; }.star-two { right: 20px; top: 5px; color: #a99ac5; font-size: 37px; }.star-three { right: 1px; bottom: 23px; font-size: 21px; color: #b2c291; }
+.little-orb { position: absolute; display: flex; justify-content: center; align-items: center; gap: 8px; width: 38px; height: 37px; border-radius: 50%; border: 1px solid #a9c8bc; background: #cce3d5; rotate: -20deg; }
+.little-orb i { width: 3px; height: 6px; background: #658574; border-radius: 3px; }
+.little-left { left: 14px; bottom: 21px; }.little-right { right: 10px; top: 53px; rotate: 20deg; background: #e2d9ef; border-color: #c8badb; width: 29px; height: 28px; gap: 6px; }
+.celebration-kicker { font-size: 12px; letter-spacing: 3px; color: #829173; margin: 0 0 6px; }
+h1 { font-family: FangzhengCuYuan, 'Noto Sans SC', sans-serif; color: #4c6145; font-weight: 400; font-size: 36px; margin: 0; line-height: 1.4; }
+.celebration-subtitle { color: #879079; font-size: 13px; margin: 8px 0 18px; line-height: 1.6; }
+.reward-ticket { position: relative; border: 1px solid #d5dcc4; background: #fffef5; border-radius: 17px; padding: 15px 26px 10px; box-shadow: 0 5px 0 #dce4cf6b; }
+.reward-ticket::before, .reward-ticket::after { content: ''; position: absolute; width: 16px; height: 16px; top: 83px; background: #f5f5e9; border: 1px solid #d5dcc4; border-radius: 50%; }
+.reward-ticket::before { left: -9px; border-left-color: transparent; }.reward-ticket::after { right: -9px; border-right-color: transparent; }
+.ticket-heading { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #8d947d; }
+#reward-tier { background: #efead5; color: #8b794d; border-radius: 6px; padding: 4px 9px; }
+.reward-money { display: flex; align-items: baseline; justify-content: center; gap: 9px; color: #546b47; padding: 7px 0 10px; }
+.reward-money > span { font: 700 14px Nunito, 'Noto Sans SC', sans-serif; }
+.reward-money strong { font-family: FangzhengCuYuan, Nunito, sans-serif; font-size: 49px; font-weight: 400; letter-spacing: 1px; line-height: 1.25; }
+.ticket-rule { border-top: 1px dashed #d7ddc7; }.reward-ticket p { font-size: 11px; color: #959c88; margin: 9px 0 0; }
+.achievement-detail { display: flex; justify-content: space-around; margin: 24px 0 15px; }.achievement-detail > div { flex: 1; }.achievement-detail > div + div { border-left: 1px solid #dce3d1; }
+.achievement-detail span { display: block; font-size: 11px; color: #87957b; }.achievement-detail strong { display: block; font: 800 21px Nunito, sans-serif; color: #647858; margin-top: 6px; }
+.warm-note { font-family: FangzhengCuYuan, sans-serif; font-size: 15px; color: #8c9a80; margin: 15px 0 18px; }
+.celebration-actions { display: flex; justify-content: center; gap: 12px; }.celebration-actions .button { border-radius: 12px; min-height: 42px; border-color: #d8e1ca; font-size: 13px; }.celebration-actions .primary { background: #7c966c; border-color: #7c966c; padding-left: 25px; padding-right: 25px; }
+html[lang="en"] h1 { font-family: Nunito, sans-serif; font-weight: 900; font-size: 31px; }html[lang="en"] .warm-note { font-family: Nunito, sans-serif; font-weight: 700; }
+@keyframes award-float { 50% { transform: translateY(-5px) rotate(3deg); } }
+@media (max-height: 680px) { .award-scene { height: 153px; scale: .87; margin-top: -8px; margin-bottom: -9px; } h1 { font-size: 32px; } .celebration-content { padding-left: 30px; padding-right: 30px; } .achievement-detail { margin: 17px 0 12px; } .warm-note { margin: 12px 0; } }

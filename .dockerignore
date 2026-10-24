@@ -1,0 +1,8 @@
+**
+!src/
+!src/share-protocol.cjs
+!cloud/
+!cloud/server.cjs
+!cloud/public/
+!cloud/public/**
+!cloud/Dockerfile

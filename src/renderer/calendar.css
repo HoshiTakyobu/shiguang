@@ -118,3 +118,22 @@ dialog::backdrop { background: #26382a38; backdrop-filter: blur(3px); }
 .dialog-actions .button { min-width: 86px; }
 .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--ink); color: white; font-size: 14px; border-radius: 10px; padding: 12px 20px; box-shadow: 0 4px 18px #20332020; }
 @media (max-width: 900px) { .content { padding: 22px 24px 16px; } .brand-caption { font-size: 13px; } .month-english { display: none; } .summary { gap: 10px; } .stat { padding: 12px; } .today-stat strong { font-size: 25px; } .stat strong { font-size: 26px; } #target-description { display: block; margin-top: 2px; } .stat > div { align-items: center; } .stat-label { font-size: 13px; } .week-row { grid-template-columns: 77px repeat(7, minmax(0, 1fr)); } h1 { font-size: 30px; } .doodle { margin-right: 2px; } }
+/* Keep the month and its goals together on laptop-height windows. */
+@media (max-height: 900px) {
+  .content { padding-top: 16px; padding-bottom: 12px; }
+  .page-heading { height: 54px; }
+  h1 { font-size: 27px; }
+  .intro { display: none; }
+  .doodle { transform: scale(.6); transform-origin: top right; }
+  .summary { margin-bottom: 16px; }
+  .stat { min-height: 80px; padding: 10px 14px; }
+  .stat > div { margin-top: 4px; }
+  .calendar-toolbar { margin-bottom: 10px; }
+  .dates-row { min-height: 52px; }
+  .day-cell { height: 52px; }
+  .calendar-grid[data-weeks="6"] .dates-row { min-height: 46px; }
+  .calendar-grid[data-weeks="6"] .day-cell { height: 46px; }
+  .calendar-grid[data-weeks="6"] .day, .calendar-grid[data-weeks="6"] .day svg { width: 44px; height: 44px; }
+  .calendar-bottom { min-height: 44px; }
+  footer { min-height: 36px; }
+}

@@ -4,6 +4,7 @@ const path = require('node:path');
 const os = require('node:os');
 const assert = require('node:assert/strict');
 const { WorkClock, dayKey, HOUR } = require('../src/clock.cjs');
+const { SettingsStore } = require('../src/settings.cjs');
 
 const root = path.resolve(__dirname, '..');
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shiguang-ui-test-'));
@@ -22,6 +23,9 @@ const priorMonth = dayKey(new Date(year, month, 0));
 days[priorMonth] = 3 * HOUR;
 fs.writeFileSync(path.join(dataDir, 'worklog.json'), JSON.stringify({ version: 1, days, activeSince: null }));
 fs.writeFileSync(path.join(dataDir, 'preferences.json'), JSON.stringify({ x: 250, y: 200 }));
+// Monthly-native tests cover automatic milestone windows; keep daily UI flows independent of the date.
+const smokeSettings = new SettingsStore(dataDir);
+smokeSettings.save({ ...smokeSettings.load(), monthlyGoals: { ...smokeSettings.load().monthlyGoals, celebrations: false } });
 const errors = [];
 let app;
 
@@ -30,6 +34,9 @@ async function launch(expectedStatus = '下班啦') {
   delete env.ELECTRON_RUN_AS_NODE;
   const options = process.env.SHIGUANG_EXECUTABLE ? { executablePath: process.env.SHIGUANG_EXECUTABLE } : { args: [root] };
   app = await electron.launch({ ...options, env });
+  // These flows choose not to count time after exit. Dedicated exit tests cover
+  // the real dialog, cancellation, continuing, and persistence failures.
+  await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1 }); });
   app.on('window', page => {
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -536,8 +543,9 @@ async function chooseOrb(orb, choice, screenshot) {
       }, side);
       await expect(reopened.locator('html')).toHaveAttribute('data-dock', side);
       const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
-      assert.equal(bounds.width, 32); assert.equal(bounds.height, 100);
-      await expect(reopened.locator('#orb')).toHaveCSS('width', '80px');
+      assert.equal(bounds.width, 52); assert.equal(bounds.height, 100);
+      await expect(reopened.locator('#orb')).toHaveCSS('width', '104px');
+      await expect(reopened.locator('#orb')).toHaveCSS('height', '80px');
     }
     await dockOrb('left');
     await app.evaluate(({ screen }) => { screen.getCursorScreenPoint = () => ({ x: 10000, y: -10000 }); });

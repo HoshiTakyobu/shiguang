@@ -25,6 +25,10 @@ jobs:
       - run: npm run test:startup
       - run: npm run test:system
       - run: npm run test:shutdown
+      - run: npm run test:exit
+      - run: npm run test:monthly
+      - run: npm run test:cloud
+      - run: npm run test:phone
       - run: npm run test:shortcuts
       - run: npm run test:ui
       - run: npm run dist
@@ -35,6 +39,12 @@ jobs:
           npm run test:ui
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:shutdown
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:exit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:monthly
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:phone
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm run test:shortcuts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

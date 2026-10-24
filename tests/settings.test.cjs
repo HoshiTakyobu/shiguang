@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { SettingsStore, patchSettings, moveDataDirectory } = require('../src/settings.cjs');
 const { DEFAULT_SHORTCUTS } = require('../src/shortcuts.cjs');
+const { DEFAULT_MONTHLY_GOALS } = require('../src/monthly.cjs');
 const { WorkClock, HOUR } = require('../src/clock.cjs');
 const { FileStore } = require('../src/store.cjs');
 
@@ -42,7 +43,7 @@ test('older settings migrate language/week start without changing stored prefere
   const old = { version: 1, launchAtLogin: false, theme: 'sand', targetMinutes: 420, dataDirectory: root };
   fs.writeFileSync(store.file, JSON.stringify(old));
   const migrated = store.load();
-  assert.deepEqual(migrated, { ...old, language: 'zh-CN', weekStart: 1, shortcuts: DEFAULT_SHORTCUTS });
+  assert.deepEqual(migrated, { ...old, language: 'zh-CN', weekStart: 1, shortcuts: DEFAULT_SHORTCUTS, monthlyGoals: DEFAULT_MONTHLY_GOALS });
   const updated = patchSettings(migrated, { language: 'en', weekStart: 0 });
   store.save(updated);
   assert.deepEqual(store.load(), updated);
@@ -86,7 +87,7 @@ test('older backups migrate disabled shortcuts and loaded maps do not mutate def
   fs.writeFileSync(store.file, 'broken');
   fs.writeFileSync(`${store.file}.bak`, JSON.stringify(old));
   const recovered = store.load();
-  assert.deepEqual(recovered, { ...old, shortcuts: DEFAULT_SHORTCUTS });
+  assert.deepEqual(recovered, { ...old, shortcuts: DEFAULT_SHORTCUTS, monthlyGoals: DEFAULT_MONTHLY_GOALS });
   recovered.shortcuts.clockIn = 'Ctrl+I';
   assert.equal(store.defaults.shortcuts.clockIn, '');
   assert.equal(store.load().shortcuts.clockIn, '');

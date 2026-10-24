@@ -1,0 +1,11 @@
+方正粗圆简体 / Fangzheng CuYuan
+
+This font was provided by the user for the monthly milestone interface.
+Original filename: FZY4JW.TTF
+Embedded filename: fangzheng-cuyuan.ttf
+Internal family name verified on Windows: 方正粗圆简体
+SHA-256: 6bcffd107d85c475e12825698e7c48c6290cb1f80ad2d82e4d48b2d5d65110ab
+
+The font is distributed in this user-requested build without modification.
+Its copyright and font usage rights are separate from the application code.
+The application's MIT license does not grant rights to this font.

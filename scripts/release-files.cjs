@@ -3,7 +3,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const pkg = require('../package.json');
 const sourceEntries = [
-  '.github', '.gitignore', 'assets', 'build', 'docs', 'scripts', 'src', 'tests',
+  '.github', '.gitignore', '.dockerignore', 'assets', 'build', 'cloud', 'docs', 'scripts', 'src', 'tests',
   'package.json', 'package-lock.json', 'README.md', 'README.en.md',
   'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md', 'CONTRIBUTING.md'
 ];
@@ -22,7 +22,7 @@ function sourceFiles() {
     if (stat.isDirectory()) {
       for (const entry of fs.readdirSync(absolute).sort()) walk(path.join(relative, entry));
     } else {
-      if (/(^|[\\/])(node_modules|release|test-results|\.git)([\\/]|$)|(^|[\\/])(\.env(?:\..*)?|worklog\.json.*|settings\.json.*|preferences\.json)$|\.(pem|pfx|p12|log)$/i.test(relative)) {
+      if (/(^|[\\/])(node_modules|release|test-results|\.git)([\\/]|$)|(^|[\\/])cloud[\\/]data[\\/]|(^|[\\/])(\.env(?:\..*)?|private\.env(?:\..*)?|worklog\.json.*|settings\.json.*|preferences\.json|cloud-settings\.json|monthly-notices\.json.*)$|\.(pem|pfx|p12|log)$/i.test(relative)) {
         throw new Error(`Unexpected private or generated file in source package: ${relative}`);
       }
       result.push(relative);
